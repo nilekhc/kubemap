@@ -496,6 +496,12 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			deployment = *obj.RawObj.(*apps_v1beta2.Deployment).DeepCopy()
 		}
 
+		newDeploymentMappedResource := MappedResource{}
+		newDeploymentMappedResource.CommonLabel = deployment.Name
+		newDeploymentMappedResource.CurrentType = "deployment"
+		newDeploymentMappedResource.Namespace = deployment.Namespace
+
+		var deleteKeys []string
 		for _, podKey := range podKeys {
 			mappedResource, err := getObjectFromStore(podKey, store)
 			if err != nil {
@@ -508,18 +514,19 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					//Pod name must start with deployment name.
 					if strings.HasPrefix(pod.Name, deployment.Name) {
 						//pod is matched with this deployment. Add deployment to mappedResource
-						mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
-						mappedResource.CommonLabel = deployment.Name
-						mappedResource.CurrentType = "deployment"
-						return MapResult{
-							Action:         "Added",
-							Key:            podKey,
-							IsMapped:       true,
-							MappedResource: mappedResource,
-						}, nil
+						newDeploymentMappedResource.Kube.Pods = append(newDeploymentMappedResource.Kube.Pods, pod)
+						deleteKeys = append(deleteKeys, podKey)
 					}
 				}
 			}
+		}
+		if len(deleteKeys) > 0 {
+			return MapResult{
+				Action:         "Added",
+				DeleteKeys:     deleteKeys,
+				IsMapped:       true,
+				MappedResource: newDeploymentMappedResource,
+			}, nil
 		}
 	case *ext_v1beta1.ReplicaSet:
 		//Find any individual pods matching this replica sets
@@ -538,6 +545,13 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			replicaSet = *obj.RawObj.(*ext_v1beta1.ReplicaSet).DeepCopy()
 		}
 
+		//Create new RS to put matching pods in it.
+		newRSMappedResource := MappedResource{}
+		newRSMappedResource.CommonLabel = replicaSet.Name
+		newRSMappedResource.CurrentType = "replicaset"
+		newRSMappedResource.Namespace = replicaSet.Namespace
+
+		var deleteKeys []string
 		for _, podKey := range podKeys {
 			mappedResource, err := getObjectFromStore(podKey, store)
 			if err != nil {
@@ -549,20 +563,21 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				for _, pod := range mappedResource.Kube.Pods {
 					for _, podOwnerReference := range pod.OwnerReferences {
 						if podOwnerReference.Name == replicaSet.Name {
-							//pod is matched with this RS. Add RS to updatedMappedResource
-							mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
-							mappedResource.CommonLabel = replicaSet.Name
-							mappedResource.CurrentType = "replicaset"
-							return MapResult{
-								Action:         "Added",
-								Key:            podKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+							//pod is matched with this RS. Add to newRSMappedResource
+							newRSMappedResource.Kube.Pods = append(newRSMappedResource.Kube.Pods, pod)
+							deleteKeys = append(deleteKeys, podKey)
 						}
 					}
 				}
 			}
+		}
+		if len(deleteKeys) > 0 {
+			return MapResult{
+				Action:         "Added",
+				DeleteKeys:     deleteKeys,
+				IsMapped:       true,
+				MappedResource: newRSMappedResource,
+			}, nil
 		}
 
 	case *core_v1.Pod:
@@ -649,6 +664,12 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 			deployment = *obj.RawObj.(*apps_v1beta2.Deployment).DeepCopy()
 		}
 
+		var deleteKeys []string
+		newDeploymentMappedResource := MappedResource{}
+		newDeploymentMappedResource.CommonLabel = deployment.Name
+		newDeploymentMappedResource.CurrentType = "deployment"
+		newDeploymentMappedResource.Namespace = deployment.Namespace
+
 		for _, rsKey := range rsKeys {
 			mappedResource, err := getObjectFromStore(rsKey, store)
 			if err != nil {
@@ -661,19 +682,20 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 					for _, replicaSetOwnerReference := range replicaSet.OwnerReferences {
 						if replicaSetOwnerReference.Name == deployment.Name {
 							//rs is matched with this Deployment. Add deployment to mappedResource
-							mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
-							mappedResource.CommonLabel = deployment.Name
-							mappedResource.CurrentType = "deployment"
-							return MapResult{
-								Action:         "Added",
-								Key:            rsKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+							newDeploymentMappedResource.Kube.ReplicaSets = append(newDeploymentMappedResource.Kube.ReplicaSets, replicaSet)
+							deleteKeys = append(deleteKeys, rsKey)
 						}
 					}
 				}
 			}
+		}
+		if len(deleteKeys) > 0 {
+			return MapResult{
+				Action:         "Added",
+				DeleteKeys:     deleteKeys,
+				IsMapped:       true,
+				MappedResource: newDeploymentMappedResource,
+			}, nil
 		}
 	case *core_v1.Pod:
 		var pod, updatedPod core_v1.Pod
@@ -1414,6 +1436,27 @@ func updateStore(results []MapResult, store cache.Store) error {
 
 				//Add new mapped resource to store
 				err = store.Add(result.MappedResource)
+				if err != nil {
+					return err
+				}
+			} else if len(result.DeleteKeys) > 0 {
+				//Needs to delete multiple resources
+				//Update object in store
+				for _, deleteKey := range result.DeleteKeys {
+					existingMappedResource, err := getObjectFromStore(deleteKey, store)
+					if err != nil {
+						return err
+					}
+
+					//Delete exiting resource from store
+					err = store.Delete(existingMappedResource)
+					if err != nil {
+						return err
+					}
+				}
+
+				//Add new mapped resource to store
+				err := store.Add(result.MappedResource)
 				if err != nil {
 					return err
 				}

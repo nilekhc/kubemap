@@ -75,6 +75,7 @@ type ResourceEvent struct {
 //MapResult ...
 type MapResult struct {
 	Key            string
+	DeleteKeys     []string
 	Action         string
 	IsMapped       bool
 	MappedResource MappedResource
