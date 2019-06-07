@@ -310,6 +310,8 @@ func mapReplicaSet(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					MappedResource: mappedIndividualResource,
 				}, nil
 			}
+
+			return podMappingResult, nil
 		}
 		return serviceMappingResult, nil
 
@@ -878,6 +880,7 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 		}
 
 		for _, deploymentKey := range deploymentKeys {
+			isMatching := false
 			mappedResource, err := getObjectFromStore(deploymentKey, store)
 			if err != nil {
 				return MapResult{}, err
@@ -919,7 +922,6 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 			//Match for deployment
 			if len(mappedResource.Kube.Deployments) > 0 {
 				for _, deployment := range mappedResource.Kube.Deployments {
-					isMatching := false
 					for depKey, depValue := range deployment.Spec.Selector.MatchLabels {
 						if val, ok := pod.Labels[depKey]; ok {
 							if val == depValue {
