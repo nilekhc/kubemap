@@ -74,7 +74,7 @@ func resourceMap(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		}, nil
 	}
 
-	return []MapResult{}, fmt.Errorf("Resource type %s is not supported for mapping", obj.ResourceType)
+	return []MapResult{}, fmt.Errorf("Resource type '%s' is not supported for mapping", obj.ResourceType)
 }
 
 /*
