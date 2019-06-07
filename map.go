@@ -455,17 +455,15 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			//See if pod matched to any of RS
 			if len(mappedResource.Kube.Pods) > 0 {
 				for _, pod := range mappedResource.Kube.Pods {
-					isMatching := false
+					podMatchedLabels := make(map[string]string)
 					for svcKey, svcValue := range service.Spec.Selector {
 						if val, ok := pod.Labels[svcKey]; ok {
 							if val == svcValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								podMatchedLabels[svcKey] = svcValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(podMatchedLabels, service.Spec.Selector) {
 						//Add service to this RS mapped resources
 						mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
 						mappedResource.CommonLabel = service.Name
@@ -609,17 +607,15 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 			//See if deployment is matching to any service
 			if len(mappedResource.Kube.ReplicaSets) > 0 {
 				for _, replicaSet := range mappedResource.Kube.ReplicaSets {
-					isMatching := false
+					rsMatchedLabels := make(map[string]string)
 					for svcKey, svcValue := range service.Spec.Selector {
 						if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
 							if val == svcValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								rsMatchedLabels[svcKey] = svcValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(rsMatchedLabels, service.Spec.Selector) {
 						//Add service to this RS mapped resources
 						mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
 						mappedResource.CommonLabel = service.Name
@@ -880,7 +876,6 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 		}
 
 		for _, deploymentKey := range deploymentKeys {
-			isMatching := false
 			mappedResource, err := getObjectFromStore(deploymentKey, store)
 			if err != nil {
 				return MapResult{}, err
@@ -922,16 +917,15 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 			//Match for deployment
 			if len(mappedResource.Kube.Deployments) > 0 {
 				for _, deployment := range mappedResource.Kube.Deployments {
+					podMatchedLabels := make(map[string]string)
 					for depKey, depValue := range deployment.Spec.Selector.MatchLabels {
 						if val, ok := pod.Labels[depKey]; ok {
 							if val == depValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								podMatchedLabels[depKey] = depValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(podMatchedLabels, deployment.Spec.Selector.MatchLabels) {
 						for _, mappedPod := range mappedResource.Kube.Pods {
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
@@ -1206,17 +1200,15 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 			//Match for service
 			if len(mappedResource.Kube.Services) > 0 {
 				for _, service := range mappedResource.Kube.Services {
-					isMatching := false
+					rsMatchedLabels := make(map[string]string)
 					for svcKey, svcValue := range service.Spec.Selector {
 						if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
 							if val == svcValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								rsMatchedLabels[svcKey] = svcValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(rsMatchedLabels, service.Spec.Selector) {
 						//rs is matched with this Deployment. Add rs to this mapped resource
 						for _, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
 							if replicaSet.UID == mappedReplicaSet.UID {
@@ -1308,17 +1300,15 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 			//Match for deployment
 			if len(mappedResource.Kube.Deployments) > 0 {
 				for _, deployment := range mappedResource.Kube.Deployments {
-					isMatching := false
+					podMatchedLabels := make(map[string]string)
 					for depKey, depValue := range deployment.Spec.Selector.MatchLabels {
 						if val, ok := pod.Labels[depKey]; ok {
 							if val == depValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								podMatchedLabels[depKey] = depValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(podMatchedLabels, deployment.Spec.Selector.MatchLabels) {
 						for _, mappedPod := range mappedResource.Kube.Pods {
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
@@ -1348,17 +1338,15 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 			//Match for service
 			if len(mappedResource.Kube.Services) > 0 {
 				for _, service := range mappedResource.Kube.Services {
-					isMatching := false
+					podMatchedLabels := make(map[string]string)
 					for svcKey, svcValue := range service.Spec.Selector {
 						if val, ok := pod.Labels[svcKey]; ok {
 							if val == svcValue {
-								isMatching = true
-							} else {
-								isMatching = false
+								podMatchedLabels[svcKey] = svcValue
 							}
 						}
 					}
-					if isMatching {
+					if reflect.DeepEqual(podMatchedLabels, service.Spec.Selector) {
 						for _, mappedPod := range mappedResource.Kube.Pods {
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
