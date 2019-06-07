@@ -18,16 +18,35 @@ type KubeResources struct {
 	pods        []core_v1.Pod
 }
 
+// //MappedResource is final mapped output of interlinked K8s resources
+// type MappedResource struct {
+// 	CommonLabel string                    `json:"commonLabel,omitempty"`
+// 	Namespace   string                    `json:"namespace,omitempty"`
+// 	CurrentType string                    `json:"currentType,omitempty"`
+// 	Ingresses   []ext_v1beta1.Ingress     `json:"ingresses,omitempty"`
+// 	Services    []core_v1.Service         `json:"services,omitempty"`
+// 	Deployments []apps_v1beta2.Deployment `json:"deployments,omitempty"`
+// 	ReplicaSets []ext_v1beta1.ReplicaSet  `json:"replicaSets,omitempty"`
+// 	Pods        []core_v1.Pod             `json:"pods,omitempty"`
+// }
+
 //MappedResource is final mapped output of interlinked K8s resources
 type MappedResource struct {
-	CommonLabel string                    `json:"commonLabel,omitempty"`
-	Namespace   string                    `json:"namespace,omitempty"`
-	CurrentType string                    `json:"currentType,omitempty"`
+	CommonLabel string `json:"commonLabel,omitempty"`
+	Namespace   string `json:"namespace,omitempty"`
+	CurrentType string `json:"currentType,omitempty"`
+	EventType   string `json:"eventType,omitempty"`
+	Kube        Kube   `json:"kube,omitempty"`
+}
+
+//Kube ...
+type Kube struct {
 	Ingresses   []ext_v1beta1.Ingress     `json:"ingresses,omitempty"`
 	Services    []core_v1.Service         `json:"services,omitempty"`
 	Deployments []apps_v1beta2.Deployment `json:"deployments,omitempty"`
 	ReplicaSets []ext_v1beta1.ReplicaSet  `json:"replicaSets,omitempty"`
 	Pods        []core_v1.Pod             `json:"pods,omitempty"`
+	Events      []core_v1.Event           `json:"events,omitempty"`
 }
 
 //MappedResources returns set of common labels consisting mapped k8s resources.
@@ -42,11 +61,19 @@ type Mapper struct {
 }
 
 type resourceEvent struct {
-	UID          string
-	Key          string
-	EventType    string
-	Namespace    string
-	ResourceType string
-	Name         string
-	RawObj       interface{}
+	UID           string
+	Key           string
+	EventType     string
+	Namespace     string
+	ResourceType  string
+	Name          string
+	RawObj        interface{}
+	UpdatedRawObj interface{}
+}
+
+type mapResult struct {
+	Key            string
+	Action         string
+	IsMapped       bool
+	MappedResource MappedResource
 }

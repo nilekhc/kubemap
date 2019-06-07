@@ -81,7 +81,11 @@ func processNextItemToMap(queue workqueue.RateLimitingInterface, store cache.Sto
 }
 
 func processK8sItem(obj interface{}, store cache.Store) error {
-	mapResource(obj, store)
+	//mapResource(obj, store)
+	_, err := kubemap(obj, store)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

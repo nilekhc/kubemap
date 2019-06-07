@@ -13,7 +13,18 @@
             "pod-template-hash": "644c5c58fc"
         },
         "name": "kube-map-644c5c58fc",
-        "namespace": "test-namespace"
+        "namespace": "test-namespace",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "Deployment",
+                "name": "kube-map",
+                "uid": "c92dd1cb-6b7b-11e9-9677-024ebf7005c2"
+            }
+        ],
+        "uid": "c9309d2e-6b7b-11e9-9677-024ebf7005c2"
     },
     "spec": {
         "replicas": 1,

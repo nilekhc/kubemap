@@ -11,7 +11,8 @@
             "transit": "http"
         },
         "name": "kube-map",
-        "namespace": "test-namespace"
+        "namespace": "test-namespace",
+        "uid": "c92dd1cb-6b7b-11e9-9677-024ebf7005c2"
     },
     "spec": {
         "progressDeadlineSeconds": 600,
