@@ -13,7 +13,7 @@ package kubemap
 // )
 
 // func mapResource(obj interface{}, store cache.Store) error {
-// 	object := obj.(resourceEvent)
+// 	object := obj.(ResourceEvent)
 
 // 	lookUpErr := objectLookup(object, store)
 // 	if lookUpErr != nil {
@@ -24,7 +24,7 @@ package kubemap
 // 	return nil
 // }
 
-// func objectLookup(obj resourceEvent, store cache.Store) error {
+// func objectLookup(obj ResourceEvent, store cache.Store) error {
 // 	switch obj.ResourceType {
 // 	case "ingress":
 // 		err := handleIngress(obj, store)
@@ -66,7 +66,7 @@ package kubemap
 // *******************************************************************
 // */
 
-// func handleIngress(obj resourceEvent, store cache.Store) error {
+// func handleIngress(obj ResourceEvent, store cache.Store) error {
 // 	wg := sync.WaitGroup{}
 // 	errChan := make(chan error)
 
@@ -120,7 +120,7 @@ package kubemap
 // 	return removeDuplicateStrings(services)
 // }
 
-// func upsertIngress(obj resourceEvent, ingressService string, store cache.Store, errChan chan<- error, wg *sync.WaitGroup) {
+// func upsertIngress(obj ResourceEvent, ingressService string, store cache.Store, errChan chan<- error, wg *sync.WaitGroup) {
 // 	defer wg.Done()
 
 // 	//Check if matching service for that ingress exists
@@ -188,7 +188,7 @@ package kubemap
 // *******************************************************************
 // */
 
-// func handleService(obj resourceEvent, store cache.Store) error {
+// func handleService(obj ResourceEvent, store cache.Store) error {
 // 	wg := sync.WaitGroup{}
 // 	errChan := make(chan error)
 // 	var mapErr error
@@ -692,7 +692,7 @@ package kubemap
 // *
 // *******************************************************************
 // */
-// func handleDeployment(obj resourceEvent, store cache.Store) error {
+// func handleDeployment(obj ResourceEvent, store cache.Store) error {
 // 	wg := sync.WaitGroup{}
 // 	errChan := make(chan error)
 // 	var mapErr error
@@ -1067,7 +1067,7 @@ package kubemap
 // *
 // *******************************************************************
 // */
-// func handleReplicaSet(obj resourceEvent, store cache.Store) error {
+// func handleReplicaSet(obj ResourceEvent, store cache.Store) error {
 // 	wg := sync.WaitGroup{}
 // 	errChan := make(chan error)
 // 	var mapErr error
@@ -1433,7 +1433,7 @@ package kubemap
 // *******************************************************************
 // */
 
-// func handlePod(obj resourceEvent, store cache.Store) error {
+// func handlePod(obj ResourceEvent, store cache.Store) error {
 // 	wg := sync.WaitGroup{}
 // 	errChan := make(chan error)
 // 	var mapErr error

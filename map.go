@@ -12,7 +12,7 @@ import (
 )
 
 func kubemap(obj interface{}, store cache.Store) ([]MapResult, error) {
-	object := obj.(resourceEvent)
+	object := obj.(ResourceEvent)
 
 	mappedResource, mapErr := resourceMap(object, store)
 	if mapErr != nil {
@@ -27,7 +27,7 @@ func kubemap(obj interface{}, store cache.Store) ([]MapResult, error) {
 	return mappedResource, nil
 }
 
-func resourceMap(obj resourceEvent, store cache.Store) ([]MapResult, error) {
+func resourceMap(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	switch obj.ResourceType {
 	case "ingress":
 		mappedIngress, err := mapIngress(obj, store)
@@ -81,7 +81,7 @@ func resourceMap(obj resourceEvent, store cache.Store) ([]MapResult, error) {
 	Ingress can either be independent resource or mapped to service
 	If its an independent service then create it with type 'service'
 */
-func mapIngress(obj resourceEvent, store cache.Store) ([]MapResult, error) {
+func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	var ingress ext_v1beta1.Ingress
 	var serviceMappingResult MapResult
 	var err error
@@ -144,7 +144,7 @@ func mapIngress(obj resourceEvent, store cache.Store) ([]MapResult, error) {
 	Service can either be independent resource or mapped to ingress
 	Service can also be mapped to individual existing deployment/s, replica set/s or pod/s from store.
 */
-func mapService(obj resourceEvent, store cache.Store) (MapResult, error) {
+func mapService(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var service core_v1.Service
 	var serviceMappingResult, podMappingResult, replicaSetMappingResult, deploymentMappingResult MapResult
 	var err error
@@ -210,7 +210,7 @@ func mapService(obj resourceEvent, store cache.Store) (MapResult, error) {
 	Deployment can either be independent resource or mapped to service
 	Deployment can also be mapped to individual existing pod/s or replica set/s, from store.
 */
-func mapDeployment(obj resourceEvent, store cache.Store) (MapResult, error) {
+func mapDeployment(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var deployment apps_v1beta2.Deployment
 	var podMappingResult, replicaSetMappingResult, serviceMappingResult MapResult
 	var err error
@@ -267,7 +267,7 @@ func mapDeployment(obj resourceEvent, store cache.Store) (MapResult, error) {
 	Replica Set can either be independent resource or mapped to deployment or service
 	RS can also be mapped to individual existing pod from store.
 */
-func mapReplicaSet(obj resourceEvent, store cache.Store) (MapResult, error) {
+func mapReplicaSet(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var replicaSet ext_v1beta1.ReplicaSet
 	var podMappingResult, deploymentMappingResult, serviceMappingResult MapResult
 	var err error
@@ -321,7 +321,7 @@ func mapReplicaSet(obj resourceEvent, store cache.Store) (MapResult, error) {
 /*
 	Pod can either be independent resource or mapped to rs, deployment or service
 */
-func mapPod(obj resourceEvent, store cache.Store) (MapResult, error) {
+func mapPod(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var pod core_v1.Pod
 	var rsMappingResult, deploymentMappingResult, serviceMappingResult MapResult
 	var err error
@@ -372,7 +372,7 @@ func mapPod(obj resourceEvent, store cache.Store) (MapResult, error) {
 }
 
 // //Ingress Matching
-// func ingressMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
+// func ingressMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 // 	// var ingressKeys []string
 
 // 	// switch obj.RawObj.(type) {
@@ -421,7 +421,7 @@ func mapPod(obj resourceEvent, store cache.Store) (MapResult, error) {
 // }
 
 //Pod Matching
-func podMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
+func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var podKeys []string
 
 	//Find matching rs for object to be matched
@@ -576,7 +576,7 @@ func podMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
 }
 
 //Replica Set Matching
-func replicaSetMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
+func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var rsKeys []string
 
 	//Find matching rs for object to be matched
@@ -750,7 +750,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (MapResult, error)
 }
 
 //Deployment Matching
-func deploymentMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
+func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var deploymentKeys []string
 
 	//Find matching rs for object to be matched
@@ -969,7 +969,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (MapResult, error)
 }
 
 //Service Matching
-func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string) (MapResult, error) {
+func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string) (MapResult, error) {
 	var serviceKeys []string
 
 	//Find matching rs for object to be matched

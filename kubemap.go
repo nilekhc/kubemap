@@ -29,7 +29,7 @@ func NewStoreMapper(store cache.Store) *Mapper {
 	}
 }
 
-//StoreMap gets a resources and maps with exiting resources in store
+//StoreMap gets a resources and maps it with exiting resources in store
 func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
 	mapResults, err := kubemap(obj, m.store)
 	if err != nil {
@@ -139,8 +139,8 @@ func addResourcesForMapping(resources KubeResources, queue workqueue.RateLimitin
 	}
 }
 
-func gerResourceEvent(obj interface{}, resourceType string) resourceEvent {
-	var newResourceEvent resourceEvent
+func gerResourceEvent(obj interface{}, resourceType string) ResourceEvent {
+	var newResourceEvent ResourceEvent
 	var err error
 
 	objMeta := objectMetaData(obj)

@@ -60,7 +60,8 @@ type Mapper struct {
 	store cache.Store
 }
 
-type resourceEvent struct {
+//ResourceEvent ...
+type ResourceEvent struct {
 	UID           string
 	Key           string
 	EventType     string
