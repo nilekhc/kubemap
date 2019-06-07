@@ -711,14 +711,14 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 								if pod.UID == mappedPod.UID {
 									//pod exists. Must have been updated
 									mappedPod = updatedPod
-								}
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            rsKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
+									return MapResult{
+										Action:         "Updated",
+										Key:            rsKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									}, nil
+								}
 							}
 
 							//If its new pod, add it.
@@ -831,17 +831,17 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 								if replicaSet.UID == mappedReplicaSet.UID {
 									//RS exists. Must have been updated
 									mappedReplicaSet = updatedReplicaSet
-								}
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            deploymentKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
+									return MapResult{
+										Action:         "Updated",
+										Key:            deploymentKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									}, nil
+								}
 							}
 
-							//If its new pod, add it.
+							//If its new RS, add it.
 							mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
 
 							return MapResult{
@@ -891,14 +891,14 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 								if pod.UID == mappedPod.UID {
 									//pod exists. Must have been updated
 									mappedPod = updatedPod
-								}
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            deploymentKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
+									return MapResult{
+										Action:         "Updated",
+										Key:            deploymentKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									}, nil
+								}
 							}
 
 							//If its new pod, add it.
@@ -930,14 +930,14 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
 								mappedPod = updatedPod
-							}
 
-							return MapResult{
-								Action:         "Updated",
-								Key:            deploymentKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+								return MapResult{
+									Action:         "Updated",
+									Key:            deploymentKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
 						}
 
 						//If its new pod, add it.
@@ -1112,14 +1112,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 							if deployment.UID == mappedDeployment.UID {
 								//Deployment exists. Must have been updated
 								mappedDeployment = updatedDeployment
-							}
 
-							return MapResult{
-								Action:         "Updated",
-								Key:            serviceKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+								return MapResult{
+									Action:         "Updated",
+									Key:            serviceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
 						}
 
 						//If its new deployment, add it.
@@ -1173,14 +1173,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 								if replicaSet.UID == mappedReplicaSet.UID {
 									//RS exists. Must have been updated
 									mappedReplicaSet = updatedReplicaSet
-								}
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            serviceKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
+									return MapResult{
+										Action:         "Updated",
+										Key:            serviceKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									}, nil
+								}
 							}
 
 							//If its new pod, add it.
@@ -1214,14 +1214,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 							if replicaSet.UID == mappedReplicaSet.UID {
 								//RS exists. Must have been updated
 								mappedReplicaSet = updatedReplicaSet
-							}
 
-							return MapResult{
-								Action:         "Updated",
-								Key:            serviceKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+								return MapResult{
+									Action:         "Updated",
+									Key:            serviceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
 						}
 
 						//If its new pod, add it.
@@ -1274,14 +1274,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 								if pod.UID == mappedPod.UID {
 									//pod exists. Must have been updated
 									mappedPod = updatedPod
-								}
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            serviceKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
+									return MapResult{
+										Action:         "Updated",
+										Key:            serviceKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									}, nil
+								}
 							}
 
 							//If its new pod, add it.
@@ -1313,14 +1313,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
 								mappedPod = updatedPod
-							}
 
-							return MapResult{
-								Action:         "Updated",
-								Key:            serviceKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+								return MapResult{
+									Action:         "Updated",
+									Key:            serviceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
 						}
 
 						//If its new pod, add it.
@@ -1351,14 +1351,14 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 							if pod.UID == mappedPod.UID {
 								//pod exists. Must have been updated
 								mappedPod = updatedPod
-							}
 
-							return MapResult{
-								Action:         "Updated",
-								Key:            serviceKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
+								return MapResult{
+									Action:         "Updated",
+									Key:            serviceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
 						}
 
 						//If its new pod, add it.
