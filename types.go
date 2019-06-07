@@ -71,7 +71,8 @@ type resourceEvent struct {
 	UpdatedRawObj interface{}
 }
 
-type mapResult struct {
+//MapResult ...
+type MapResult struct {
 	Key            string
 	Action         string
 	IsMapped       bool

@@ -11,82 +11,82 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func kubemap(obj interface{}, store cache.Store) ([]mapResult, error) {
+func kubemap(obj interface{}, store cache.Store) ([]MapResult, error) {
 	object := obj.(resourceEvent)
 
 	mappedResource, mapErr := resourceMap(object, store)
 	if mapErr != nil {
-		return []mapResult{}, mapErr
+		return []MapResult{}, mapErr
 	}
 
 	storeErr := updateStore(mappedResource, store)
 	if storeErr != nil {
-		return []mapResult{}, storeErr
+		return []MapResult{}, storeErr
 	}
 
 	return mappedResource, nil
 }
 
-func resourceMap(obj resourceEvent, store cache.Store) ([]mapResult, error) {
+func resourceMap(obj resourceEvent, store cache.Store) ([]MapResult, error) {
 	switch obj.ResourceType {
 	case "ingress":
 		mappedIngress, err := mapIngress(obj, store)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
 		return mappedIngress, nil
 	case "service":
 		mappedService, err := mapService(obj, store)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
-		return []mapResult{
+		return []MapResult{
 			mappedService,
 		}, nil
 	case "deployment":
 		mappedDeployment, err := mapDeployment(obj, store)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
-		return []mapResult{
+		return []MapResult{
 			mappedDeployment,
 		}, nil
 	case "replicaset":
 		mappedReplicaSet, err := mapReplicaSet(obj, store)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
-		return []mapResult{
+		return []MapResult{
 			mappedReplicaSet,
 		}, nil
 	case "pod":
 		mappedPod, err := mapPod(obj, store)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
-		return []mapResult{
+		return []MapResult{
 			mappedPod,
 		}, nil
 	}
 
-	return []mapResult{}, fmt.Errorf("Resource type %s is not supported for mapping", obj.ResourceType)
+	return []MapResult{}, fmt.Errorf("Resource type %s is not supported for mapping", obj.ResourceType)
 }
 
 /*
 	Ingress can either be independent resource or mapped to service
 	If its an independent service then create it with type 'service'
 */
-func mapIngress(obj resourceEvent, store cache.Store) ([]mapResult, error) {
+func mapIngress(obj resourceEvent, store cache.Store) ([]MapResult, error) {
 	var ingress ext_v1beta1.Ingress
-	var serviceMappingResult mapResult
+	var serviceMappingResult MapResult
 	var err error
 	var ingressBackendServices []string
-	var mapResults []mapResult
+	var mapResults []MapResult
 
 	if obj.RawObj != nil {
 		ingress = *obj.RawObj.(*ext_v1beta1.Ingress).DeepCopy()
@@ -114,7 +114,7 @@ func mapIngress(obj resourceEvent, store cache.Store) ([]mapResult, error) {
 		//Try matching with service
 		serviceMappingResult, err = serviceMatching(obj, store, ingressBackendService)
 		if err != nil {
-			return []mapResult{}, err
+			return []MapResult{}, err
 		}
 
 		if serviceMappingResult.IsMapped {
@@ -128,7 +128,7 @@ func mapIngress(obj resourceEvent, store cache.Store) ([]mapResult, error) {
 			newMappedIngressService.Namespace = ingress.Namespace
 			newMappedIngressService.Kube.Ingresses = append(newMappedIngressService.Kube.Ingresses, ingress)
 
-			result := mapResult{
+			result := MapResult{
 				Action:         "Added",
 				IsMapped:       true,
 				MappedResource: newMappedIngressService,
@@ -144,35 +144,35 @@ func mapIngress(obj resourceEvent, store cache.Store) ([]mapResult, error) {
 	Service can either be independent resource or mapped to ingress
 	Service can also be mapped to individual existing deployment/s, replica set/s or pod/s from store.
 */
-func mapService(obj resourceEvent, store cache.Store) (mapResult, error) {
+func mapService(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var service core_v1.Service
-	var serviceMappingResult, podMappingResult, replicaSetMappingResult, deploymentMappingResult mapResult
+	var serviceMappingResult, podMappingResult, replicaSetMappingResult, deploymentMappingResult MapResult
 	var err error
 
 	//Try matching with service
 	serviceMappingResult, err = serviceMatching(obj, store)
 	if err != nil {
-		return mapResult{}, err
+		return MapResult{}, err
 	}
 
 	if !serviceMappingResult.IsMapped {
 		deploymentMappingResult, err = deploymentMatching(obj, store)
 		if err != nil {
-			return mapResult{}, err
+			return MapResult{}, err
 		}
 
 		if !deploymentMappingResult.IsMapped {
 			//Try matching with replica set
 			replicaSetMappingResult, err = replicaSetMatching(obj, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//Try matching with any individual replica set
 			if !replicaSetMappingResult.IsMapped {
 				podMappingResult, err = podMatching(obj, store)
 				if err != nil {
-					return mapResult{}, err
+					return MapResult{}, err
 				}
 
 				if !podMappingResult.IsMapped {
@@ -187,7 +187,7 @@ func mapService(obj resourceEvent, store cache.Store) (mapResult, error) {
 					mappedIndividualResource.Namespace = service.Namespace
 					mappedIndividualResource.Kube.Services = append(mappedIndividualResource.Kube.Services, service)
 
-					return mapResult{
+					return MapResult{
 						Action:         "Added",
 						IsMapped:       true,
 						MappedResource: mappedIndividualResource,
@@ -210,29 +210,29 @@ func mapService(obj resourceEvent, store cache.Store) (mapResult, error) {
 	Deployment can either be independent resource or mapped to service
 	Deployment can also be mapped to individual existing pod/s or replica set/s, from store.
 */
-func mapDeployment(obj resourceEvent, store cache.Store) (mapResult, error) {
+func mapDeployment(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var deployment apps_v1beta2.Deployment
-	var podMappingResult, replicaSetMappingResult, serviceMappingResult mapResult
+	var podMappingResult, replicaSetMappingResult, serviceMappingResult MapResult
 	var err error
 
 	//Try matching with service
 	serviceMappingResult, err = serviceMatching(obj, store)
 	if err != nil {
-		return mapResult{}, err
+		return MapResult{}, err
 	}
 
 	if !serviceMappingResult.IsMapped {
 		//Try matching with any individual replica set
 		replicaSetMappingResult, err = replicaSetMatching(obj, store)
 		if err != nil {
-			return mapResult{}, err
+			return MapResult{}, err
 		}
 
 		//Try matching with any individual replica set
 		if !replicaSetMappingResult.IsMapped {
 			podMappingResult, err = podMatching(obj, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			if !podMappingResult.IsMapped {
@@ -247,7 +247,7 @@ func mapDeployment(obj resourceEvent, store cache.Store) (mapResult, error) {
 				mappedIndividualResource.Namespace = deployment.Namespace
 				mappedIndividualResource.Kube.Deployments = append(mappedIndividualResource.Kube.Deployments, deployment)
 
-				return mapResult{
+				return MapResult{
 					Action:         "Added",
 					IsMapped:       true,
 					MappedResource: mappedIndividualResource,
@@ -267,29 +267,29 @@ func mapDeployment(obj resourceEvent, store cache.Store) (mapResult, error) {
 	Replica Set can either be independent resource or mapped to deployment or service
 	RS can also be mapped to individual existing pod from store.
 */
-func mapReplicaSet(obj resourceEvent, store cache.Store) (mapResult, error) {
+func mapReplicaSet(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var replicaSet ext_v1beta1.ReplicaSet
-	var podMappingResult, deploymentMappingResult, serviceMappingResult mapResult
+	var podMappingResult, deploymentMappingResult, serviceMappingResult MapResult
 	var err error
 
 	//Try matching with deployment
 	deploymentMappingResult, err = deploymentMatching(obj, store)
 	if err != nil {
-		return mapResult{}, err
+		return MapResult{}, err
 	}
 
 	//Try matching with service
 	if !deploymentMappingResult.IsMapped {
 		serviceMappingResult, err = serviceMatching(obj, store)
 		if err != nil {
-			return mapResult{}, err
+			return MapResult{}, err
 		}
 
 		//Try matching with any individual pod
 		if !serviceMappingResult.IsMapped {
 			podMappingResult, err = podMatching(obj, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			if !podMappingResult.IsMapped {
@@ -304,7 +304,7 @@ func mapReplicaSet(obj resourceEvent, store cache.Store) (mapResult, error) {
 				mappedIndividualResource.Namespace = replicaSet.Namespace
 				mappedIndividualResource.Kube.ReplicaSets = append(mappedIndividualResource.Kube.ReplicaSets, replicaSet)
 
-				return mapResult{
+				return MapResult{
 					Action:         "Added",
 					IsMapped:       true,
 					MappedResource: mappedIndividualResource,
@@ -321,26 +321,26 @@ func mapReplicaSet(obj resourceEvent, store cache.Store) (mapResult, error) {
 /*
 	Pod can either be independent resource or mapped to rs, deployment or service
 */
-func mapPod(obj resourceEvent, store cache.Store) (mapResult, error) {
+func mapPod(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var pod core_v1.Pod
-	var rsMappingResult, deploymentMappingResult, serviceMappingResult mapResult
+	var rsMappingResult, deploymentMappingResult, serviceMappingResult MapResult
 	var err error
 
 	rsMappingResult, err = replicaSetMatching(obj, store)
 	if err != nil {
-		return mapResult{}, err
+		return MapResult{}, err
 	}
 
 	if !rsMappingResult.IsMapped {
 		deploymentMappingResult, err = deploymentMatching(obj, store)
 		if err != nil {
-			return mapResult{}, err
+			return MapResult{}, err
 		}
 
 		if !deploymentMappingResult.IsMapped {
 			serviceMappingResult, err = serviceMatching(obj, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			if !serviceMappingResult.IsMapped {
@@ -355,7 +355,7 @@ func mapPod(obj resourceEvent, store cache.Store) (mapResult, error) {
 				mappedIndividualResource.Namespace = pod.Namespace
 				mappedIndividualResource.Kube.Pods = append(mappedIndividualResource.Kube.Pods, pod)
 
-				return mapResult{
+				return MapResult{
 					Action:         "Added",
 					IsMapped:       true,
 					MappedResource: mappedIndividualResource,
@@ -372,7 +372,7 @@ func mapPod(obj resourceEvent, store cache.Store) (mapResult, error) {
 }
 
 // //Ingress Matching
-// func ingressMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
+// func ingressMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
 // 	// var ingressKeys []string
 
 // 	// switch obj.RawObj.(type) {
@@ -397,7 +397,7 @@ func mapPod(obj resourceEvent, store cache.Store) (mapResult, error) {
 // 	// 	for _, ingressKey := range ingressKeys {
 // 	// 		mappedResource, err := getObjectFromStore(ingressKey, store)
 // 	// 		if err != nil {
-// 	// 			return mapResult{}, err
+// 	// 			return MapResult{}, err
 // 	// 		}
 
 // 	// 		//See if ingress is matching to any Service
@@ -421,7 +421,7 @@ func mapPod(obj resourceEvent, store cache.Store) (mapResult, error) {
 // }
 
 //Pod Matching
-func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
+func podMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var podKeys []string
 
 	//Find matching rs for object to be matched
@@ -447,7 +447,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 		for _, podKey := range podKeys {
 			mappedResource, err := getObjectFromStore(podKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod matched to any of RS
@@ -469,7 +469,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 						mappedResource.CommonLabel = service.Name
 						mappedResource.CurrentType = "service"
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            podKey,
 							IsMapped:       true,
@@ -499,7 +499,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 		for _, podKey := range podKeys {
 			mappedResource, err := getObjectFromStore(podKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod matched to any of RS
@@ -511,7 +511,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 						mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
 						mappedResource.CommonLabel = deployment.Name
 						mappedResource.CurrentType = "deployment"
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            podKey,
 							IsMapped:       true,
@@ -541,7 +541,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 		for _, podKey := range podKeys {
 			mappedResource, err := getObjectFromStore(podKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod matched to any of RS
@@ -553,7 +553,7 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 							mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
 							mappedResource.CommonLabel = replicaSet.Name
 							mappedResource.CurrentType = "replicaset"
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            podKey,
 								IsMapped:       true,
@@ -567,16 +567,16 @@ func podMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
 
 	case *core_v1.Pod:
 	default:
-		return mapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
+		return MapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
 	}
 
-	return mapResult{
+	return MapResult{
 		IsMapped: false,
 	}, nil
 }
 
 //Replica Set Matching
-func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
+func replicaSetMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var rsKeys []string
 
 	//Find matching rs for object to be matched
@@ -602,7 +602,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 			for _, rsKey := range rsKeys {
 				mappedResource, err := getObjectFromStore(rsKey, store)
 				if err != nil {
-					return mapResult{}, err
+					return MapResult{}, err
 				}
 
 				//See if deployment is matching to any service
@@ -624,7 +624,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 							mappedResource.CommonLabel = service.Name
 							mappedResource.CurrentType = "service"
 
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            rsKey,
 								IsMapped:       true,
@@ -655,7 +655,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 			for _, rsKey := range rsKeys {
 				mappedResource, err := getObjectFromStore(rsKey, store)
 				if err != nil {
-					return mapResult{}, err
+					return MapResult{}, err
 				}
 
 				//See if pod matched to any of RS
@@ -667,7 +667,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 								mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
 								mappedResource.CommonLabel = deployment.Name
 								mappedResource.CurrentType = "deployment"
-								return mapResult{
+								return MapResult{
 									Action:         "Added",
 									Key:            rsKey,
 									IsMapped:       true,
@@ -701,7 +701,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 			for _, rsKey := range rsKeys {
 				mappedResource, err := getObjectFromStore(rsKey, store)
 				if err != nil {
-					return mapResult{}, err
+					return MapResult{}, err
 				}
 
 				//See if pod matched to any of RS
@@ -716,7 +716,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 										mappedPod = updatedPod
 									}
 
-									return mapResult{
+									return MapResult{
 										Action:         "Updated",
 										Key:            rsKey,
 										IsMapped:       true,
@@ -727,7 +727,7 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 								//If its new pod, add it.
 								mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-								return mapResult{
+								return MapResult{
 									Action:         "Added",
 									Key:            rsKey,
 									IsMapped:       true,
@@ -740,17 +740,17 @@ func replicaSetMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 			}
 		case *ext_v1beta1.Ingress:
 		default:
-			return mapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
+			return MapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
 		}
 	}
 
-	return mapResult{
+	return MapResult{
 		IsMapped: false,
 	}, nil
 }
 
 //Deployment Matching
-func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error) {
+func deploymentMatching(obj resourceEvent, store cache.Store) (MapResult, error) {
 	var deploymentKeys []string
 
 	//Find matching rs for object to be matched
@@ -776,7 +776,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 		for _, deploymentKey := range deploymentKeys {
 			mappedResource, err := getObjectFromStore(deploymentKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if deployment is matching to any service
@@ -788,7 +788,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 						mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
 						mappedResource.CommonLabel = service.Name
 						mappedResource.CurrentType = "service"
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            deploymentKey,
 							IsMapped:       true,
@@ -822,7 +822,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 		for _, deploymentKey := range deploymentKeys {
 			mappedResource, err := getObjectFromStore(deploymentKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod matched to any of RS
@@ -837,7 +837,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 									mappedReplicaSet = updatedReplicaSet
 								}
 
-								return mapResult{
+								return MapResult{
 									Action:         "Updated",
 									Key:            deploymentKey,
 									IsMapped:       true,
@@ -848,7 +848,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 							//If its new pod, add it.
 							mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
 
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            deploymentKey,
 								IsMapped:       true,
@@ -882,7 +882,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 		for _, deploymentKey := range deploymentKeys {
 			mappedResource, err := getObjectFromStore(deploymentKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod matched to any of RS in this mapped resources
@@ -897,7 +897,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 									mappedPod = updatedPod
 								}
 
-								return mapResult{
+								return MapResult{
 									Action:         "Updated",
 									Key:            deploymentKey,
 									IsMapped:       true,
@@ -908,7 +908,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 							//If its new pod, add it.
 							mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            deploymentKey,
 								IsMapped:       true,
@@ -938,7 +938,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 								mappedPod = updatedPod
 							}
 
-							return mapResult{
+							return MapResult{
 								Action:         "Updated",
 								Key:            deploymentKey,
 								IsMapped:       true,
@@ -949,7 +949,7 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 						//If its new pod, add it.
 						mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            deploymentKey,
 							IsMapped:       true,
@@ -960,16 +960,16 @@ func deploymentMatching(obj resourceEvent, store cache.Store) (mapResult, error)
 			}
 		}
 	default:
-		return mapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
+		return MapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
 	}
 
-	return mapResult{
+	return MapResult{
 		IsMapped: false,
 	}, nil
 }
 
 //Service Matching
-func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string) (mapResult, error) {
+func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string) (MapResult, error) {
 	var serviceKeys []string
 
 	//Find matching rs for object to be matched
@@ -988,7 +988,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 			if err != nil {
 				//Override error to avoid return.
 				//Set is not map so ingress will get created individual resource.
-				return mapResult{
+				return MapResult{
 					IsMapped: false,
 				}, nil
 			}
@@ -1003,7 +1003,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 
 						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Updated",
 							Key:            ingressKey,
 							IsMapped:       true,
@@ -1039,7 +1039,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 		for _, serviceKey := range serviceKeys {
 			mappedResource, err := getObjectFromStore(serviceKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//Check if we have to update service
@@ -1049,7 +1049,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 						//Update the service
 						mappedService = updatedService
 
-						return mapResult{
+						return MapResult{
 							Action:         "Updated",
 							Key:            serviceKey,
 							IsMapped:       true,
@@ -1071,7 +1071,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 										//Common Label is already set to ingress name.
 										mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
 
-										return mapResult{
+										return MapResult{
 											Action:         "Updated",
 											Key:            serviceKey,
 											IsMapped:       true,
@@ -1108,7 +1108,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 		for _, serviceKey := range serviceKeys {
 			mappedResource, err := getObjectFromStore(serviceKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if deployment match to any of service
@@ -1122,7 +1122,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 								mappedDeployment = updatedDeployment
 							}
 
-							return mapResult{
+							return MapResult{
 								Action:         "Updated",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1133,7 +1133,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 						//If its new deployment, add it.
 						mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            serviceKey,
 							IsMapped:       true,
@@ -1167,7 +1167,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 		for _, serviceKey := range serviceKeys {
 			mappedResource, err := getObjectFromStore(serviceKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//Check Deployment followed by service
@@ -1183,7 +1183,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 									mappedReplicaSet = updatedReplicaSet
 								}
 
-								return mapResult{
+								return MapResult{
 									Action:         "Updated",
 									Key:            serviceKey,
 									IsMapped:       true,
@@ -1194,7 +1194,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 							//If its new pod, add it.
 							mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
 
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1226,7 +1226,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 								mappedReplicaSet = updatedReplicaSet
 							}
 
-							return mapResult{
+							return MapResult{
 								Action:         "Updated",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1237,7 +1237,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 						//If its new pod, add it.
 						mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            serviceKey,
 							IsMapped:       true,
@@ -1271,7 +1271,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 		for _, serviceKey := range serviceKeys {
 			mappedResource, err := getObjectFromStore(serviceKey, store)
 			if err != nil {
-				return mapResult{}, err
+				return MapResult{}, err
 			}
 
 			//See if pod is matching to any of RS in this mapped resources
@@ -1286,7 +1286,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 									mappedPod = updatedPod
 								}
 
-								return mapResult{
+								return MapResult{
 									Action:         "Updated",
 									Key:            serviceKey,
 									IsMapped:       true,
@@ -1297,7 +1297,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 							//If its new pod, add it.
 							mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-							return mapResult{
+							return MapResult{
 								Action:         "Added",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1327,7 +1327,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 								mappedPod = updatedPod
 							}
 
-							return mapResult{
+							return MapResult{
 								Action:         "Updated",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1338,7 +1338,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 						//If its new pod, add it.
 						mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            serviceKey,
 							IsMapped:       true,
@@ -1367,7 +1367,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 								mappedPod = updatedPod
 							}
 
-							return mapResult{
+							return MapResult{
 								Action:         "Updated",
 								Key:            serviceKey,
 								IsMapped:       true,
@@ -1378,7 +1378,7 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 						//If its new pod, add it.
 						mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
-						return mapResult{
+						return MapResult{
 							Action:         "Added",
 							Key:            serviceKey,
 							IsMapped:       true,
@@ -1389,10 +1389,10 @@ func serviceMatching(obj resourceEvent, store cache.Store, serviceName ...string
 			}
 		}
 	default:
-		return mapResult{}, fmt.Errorf("Object to be mapped is not supported")
+		return MapResult{}, fmt.Errorf("Object to be mapped is not supported")
 	}
 
-	return mapResult{
+	return MapResult{
 		IsMapped: false,
 	}, nil
 }
@@ -1410,7 +1410,7 @@ func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
 	return MappedResource{}, fmt.Errorf("Object with key %s does not exist in store", key)
 }
 
-func updateStore(results []mapResult, store cache.Store) error {
+func updateStore(results []MapResult, store cache.Store) error {
 	for _, result := range results {
 		if result.IsMapped {
 			if result.Key != "" {
