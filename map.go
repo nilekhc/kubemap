@@ -580,49 +580,151 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 	var rsKeys []string
 
 	//Find matching rs for object to be matched
-	if len(rsKeys) > 0 {
-		switch obj.RawObj.(type) {
-		case *core_v1.Service:
-			//Find any RS matching this service
-			var service core_v1.Service
+	switch obj.RawObj.(type) {
+	case *core_v1.Service:
+		//Find any RS matching this service
+		var service core_v1.Service
 
-			//get replica set from store
-			keys := store.ListKeys()
-			for _, key := range keys {
-				//If pod has to map with deployment then it must be created via deployment => RS => pod (Pod name derived from deployment)
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" {
-					rsKeys = append(rsKeys, key)
-				}
+		//get replica set from store
+		keys := store.ListKeys()
+		for _, key := range keys {
+			//If pod has to map with deployment then it must be created via deployment => RS => pod (Pod name derived from deployment)
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" {
+				rsKeys = append(rsKeys, key)
+			}
+		}
+
+		if obj.RawObj != nil {
+			service = *obj.RawObj.(*core_v1.Service).DeepCopy()
+		}
+
+		for _, rsKey := range rsKeys {
+			mappedResource, err := getObjectFromStore(rsKey, store)
+			if err != nil {
+				return MapResult{}, err
 			}
 
-			if obj.RawObj != nil {
-				service = *obj.RawObj.(*core_v1.Service).DeepCopy()
-			}
-
-			for _, rsKey := range rsKeys {
-				mappedResource, err := getObjectFromStore(rsKey, store)
-				if err != nil {
-					return MapResult{}, err
-				}
-
-				//See if deployment is matching to any service
-				if len(mappedResource.Kube.ReplicaSets) > 0 {
-					for _, replicaSet := range mappedResource.Kube.ReplicaSets {
-						isMatching := false
-						for svcKey, svcValue := range service.Spec.Selector {
-							if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
-								if val == svcValue {
-									isMatching = true
-								} else {
-									isMatching = false
-								}
+			//See if deployment is matching to any service
+			if len(mappedResource.Kube.ReplicaSets) > 0 {
+				for _, replicaSet := range mappedResource.Kube.ReplicaSets {
+					isMatching := false
+					for svcKey, svcValue := range service.Spec.Selector {
+						if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
+							if val == svcValue {
+								isMatching = true
+							} else {
+								isMatching = false
 							}
 						}
-						if isMatching {
-							//Add service to this RS mapped resources
-							mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
-							mappedResource.CommonLabel = service.Name
-							mappedResource.CurrentType = "service"
+					}
+					if isMatching {
+						//Add service to this RS mapped resources
+						mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
+						mappedResource.CommonLabel = service.Name
+						mappedResource.CurrentType = "service"
+
+						return MapResult{
+							Action:         "Added",
+							Key:            rsKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+			}
+		}
+	case *ext_v1beta1.ReplicaSet:
+	case *apps_v1beta2.Deployment:
+		//Find any individual replica set matching this deployment
+		var deployment apps_v1beta2.Deployment
+
+		//get replica set from store
+		keys := store.ListKeys()
+		for _, key := range keys {
+			//If deployment has to map with RS then it must be created via deployment (RS name derived from Deployment)
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" && strings.HasPrefix(strings.Split(key, "/")[2], obj.Name) {
+				rsKeys = append(rsKeys, key)
+			}
+		}
+
+		if obj.RawObj != nil {
+			deployment = *obj.RawObj.(*apps_v1beta2.Deployment).DeepCopy()
+		}
+
+		for _, rsKey := range rsKeys {
+			mappedResource, err := getObjectFromStore(rsKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			//See if pod matched to any of RS
+			if len(mappedResource.Kube.ReplicaSets) > 0 {
+				for _, replicaSet := range mappedResource.Kube.ReplicaSets {
+					for _, replicaSetOwnerReference := range replicaSet.OwnerReferences {
+						if replicaSetOwnerReference.Name == deployment.Name {
+							//rs is matched with this Deployment. Add deployment to mappedResource
+							mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
+							mappedResource.CommonLabel = deployment.Name
+							mappedResource.CurrentType = "deployment"
+							return MapResult{
+								Action:         "Added",
+								Key:            rsKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+							}, nil
+						}
+					}
+				}
+			}
+		}
+	case *core_v1.Pod:
+		var pod, updatedPod core_v1.Pod
+
+		if obj.RawObj != nil {
+			pod = *obj.RawObj.(*core_v1.Pod).DeepCopy()
+		}
+		if obj.UpdatedRawObj != nil {
+			updatedPod = *obj.UpdatedRawObj.(*core_v1.Pod).DeepCopy()
+		}
+
+		//get replica set from store
+		keys := store.ListKeys()
+		for _, key := range keys {
+			//If pod has to map with RS then it must be created via deployment => RS => pod (Pod name derived from RS)
+			//Else Pod is created independently
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" && strings.HasPrefix(obj.Name, strings.Split(key, "/")[2]) {
+				rsKeys = append(rsKeys, key)
+			}
+		}
+
+		for _, rsKey := range rsKeys {
+			mappedResource, err := getObjectFromStore(rsKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			//See if pod matched to any of RS
+			if len(mappedResource.Kube.ReplicaSets) > 0 {
+				for _, replicaSet := range mappedResource.Kube.ReplicaSets {
+					for _, podOwnerReference := range pod.OwnerReferences {
+						if podOwnerReference.Name == replicaSet.Name {
+							//pod is matched with this RS. Add pod to this mapped resource
+							for _, mappedPod := range mappedResource.Kube.Pods {
+								if pod.UID == mappedPod.UID {
+									//pod exists. Must have been updated
+									mappedPod = updatedPod
+								}
+
+								return MapResult{
+									Action:         "Updated",
+									Key:            rsKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								}, nil
+							}
+
+							//If its new pod, add it.
+							mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
 
 							return MapResult{
 								Action:         "Added",
@@ -634,114 +736,10 @@ func replicaSetMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 					}
 				}
 			}
-		case *ext_v1beta1.ReplicaSet:
-		case *apps_v1beta2.Deployment:
-			//Find any individual replica set matching this deployment
-			var deployment apps_v1beta2.Deployment
-
-			//get replica set from store
-			keys := store.ListKeys()
-			for _, key := range keys {
-				//If deployment has to map with RS then it must be created via deployment (RS name derived from Deployment)
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" && strings.HasPrefix(strings.Split(key, "/")[2], obj.Name) {
-					rsKeys = append(rsKeys, key)
-				}
-			}
-
-			if obj.RawObj != nil {
-				deployment = *obj.RawObj.(*apps_v1beta2.Deployment).DeepCopy()
-			}
-
-			for _, rsKey := range rsKeys {
-				mappedResource, err := getObjectFromStore(rsKey, store)
-				if err != nil {
-					return MapResult{}, err
-				}
-
-				//See if pod matched to any of RS
-				if len(mappedResource.Kube.ReplicaSets) > 0 {
-					for _, replicaSet := range mappedResource.Kube.ReplicaSets {
-						for _, replicaSetOwnerReference := range replicaSet.OwnerReferences {
-							if replicaSetOwnerReference.Name == deployment.Name {
-								//rs is matched with this Deployment. Add deployment to mappedResource
-								mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
-								mappedResource.CommonLabel = deployment.Name
-								mappedResource.CurrentType = "deployment"
-								return MapResult{
-									Action:         "Added",
-									Key:            rsKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
-							}
-						}
-					}
-				}
-			}
-		case *core_v1.Pod:
-			var pod, updatedPod core_v1.Pod
-
-			if obj.RawObj != nil {
-				pod = *obj.RawObj.(*core_v1.Pod).DeepCopy()
-			}
-			if obj.UpdatedRawObj != nil {
-				updatedPod = *obj.UpdatedRawObj.(*core_v1.Pod).DeepCopy()
-			}
-
-			//get replica set from store
-			keys := store.ListKeys()
-			for _, key := range keys {
-				//If pod has to map with RS then it must be created via deployment => RS => pod (Pod name derived from RS)
-				//Else Pod is created independently
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" && strings.HasPrefix(obj.Name, strings.Split(key, "/")[2]) {
-					rsKeys = append(rsKeys, key)
-				}
-			}
-
-			for _, rsKey := range rsKeys {
-				mappedResource, err := getObjectFromStore(rsKey, store)
-				if err != nil {
-					return MapResult{}, err
-				}
-
-				//See if pod matched to any of RS
-				if len(mappedResource.Kube.ReplicaSets) > 0 {
-					for _, replicaSet := range mappedResource.Kube.ReplicaSets {
-						for _, podOwnerReference := range pod.OwnerReferences {
-							if podOwnerReference.Name == replicaSet.Name {
-								//pod is matched with this RS. Add pod to this mapped resource
-								for _, mappedPod := range mappedResource.Kube.Pods {
-									if pod.UID == mappedPod.UID {
-										//pod exists. Must have been updated
-										mappedPod = updatedPod
-									}
-
-									return MapResult{
-										Action:         "Updated",
-										Key:            rsKey,
-										IsMapped:       true,
-										MappedResource: mappedResource,
-									}, nil
-								}
-
-								//If its new pod, add it.
-								mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
-
-								return MapResult{
-									Action:         "Added",
-									Key:            rsKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
-							}
-						}
-					}
-				}
-			}
-		case *ext_v1beta1.Ingress:
-		default:
-			return MapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
 		}
+	case *ext_v1beta1.Ingress:
+	default:
+		return MapResult{}, fmt.Errorf("Object %s to be mapped from namespace %s is not supported", obj.Name, obj.Namespace)
 	}
 
 	return MapResult{
@@ -1022,8 +1020,6 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 		//get service from store
 		keys := store.ListKeys()
 		for _, key := range keys {
-			//If deployment has to map with service then they must have same match labels.
-			//Get all 'service' type mapped resources and try to map
 			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
 				serviceKeys = append(serviceKeys, key)
 			}
