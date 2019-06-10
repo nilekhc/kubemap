@@ -150,7 +150,8 @@ func gerResourceEvent(obj interface{}, resourceType string) ResourceEvent {
 	newResourceEvent.ResourceType = resourceType
 	newResourceEvent.Namespace = objMeta.Namespace
 	newResourceEvent.Name = objMeta.Name
-	newResourceEvent.RawObj = obj
+	newResourceEvent.Event = obj
+	//newResourceEvent.RawObj = obj
 
 	if err != nil {
 		log.Fatalf("Can't get key for store")

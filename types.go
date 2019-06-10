@@ -62,21 +62,23 @@ type Mapper struct {
 
 //ResourceEvent ...
 type ResourceEvent struct {
-	UID           string
-	Key           string
-	EventType     string
-	Namespace     string
-	ResourceType  string
-	Name          string
-	RawObj        interface{}
-	UpdatedRawObj interface{}
+	UID          string
+	Key          string
+	EventType    string
+	Namespace    string
+	ResourceType string
+	Name         string
+	Event        interface{}
+	// RawObj        interface{}
+	// UpdatedRawObj interface{}
 }
 
 //MapResult ...
 type MapResult struct {
 	Key            string
-	DeleteKeys     []string
 	Action         string
+	Message        string
+	DeleteKeys     []string
 	IsMapped       bool
 	MappedResource MappedResource
 }
