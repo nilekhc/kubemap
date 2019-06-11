@@ -1967,29 +1967,11 @@ func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
 func updateStore(results []MapResult, store cache.Store) error {
 	for _, result := range results {
 		if result.IsMapped {
-			if result.Key != "" {
-				//Update object in store
-				existingMappedResource, err := getObjectFromStore(result.Key, store)
-				if err != nil {
-					return err
-				}
-
-				//Delete exiting resource from store
-				err = store.Delete(existingMappedResource)
-				if err != nil {
-					return err
-				}
-
-				//Add new mapped resource to store
-				err = store.Add(result.MappedResource)
-				if err != nil {
-					return err
-				}
-			} else if len(result.DeleteKeys) > 0 {
-				//Needs to delete multiple resources
-				//Update object in store
-				for _, deleteKey := range result.DeleteKeys {
-					existingMappedResource, err := getObjectFromStore(deleteKey, store)
+			switch result.Action {
+			case "Added", "Updated":
+				if result.Key != "" {
+					//Update object in store
+					existingMappedResource, err := getObjectFromStore(result.Key, store)
 					if err != nil {
 						return err
 					}
@@ -1999,19 +1981,54 @@ func updateStore(results []MapResult, store cache.Store) error {
 					if err != nil {
 						return err
 					}
-				}
 
-				//Add new mapped resource to store
-				err := store.Add(result.MappedResource)
-				if err != nil {
-					return err
+					//Add new mapped resource to store
+					err = store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
+				} else if len(result.DeleteKeys) > 0 {
+					//Needs to delete multiple resources
+					//Update object in store
+					for _, deleteKey := range result.DeleteKeys {
+						existingMappedResource, err := getObjectFromStore(deleteKey, store)
+						if err != nil {
+							return err
+						}
+
+						//Delete exiting resource from store
+						err = store.Delete(existingMappedResource)
+						if err != nil {
+							return err
+						}
+					}
+
+					//Add new mapped resource to store
+					err := store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
+				} else {
+					//If key is not present then its new mapped resource.
+					//Add new individual mapped resource to store
+					err := store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
 				}
-			} else {
-				//If key is not present then its new mapped resource.
-				//Add new individual mapped resource to store
-				err := store.Add(result.MappedResource)
-				if err != nil {
-					return err
+			case "Deleted":
+				if result.Key != "" {
+					//Get object from store
+					existingMappedResource, err := getObjectFromStore(result.Key, store)
+					if err != nil {
+						return err
+					}
+
+					//Delete existing resource from store
+					err = store.Delete(existingMappedResource)
+					if err != nil {
+						return err
+					}
 				}
 			}
 		}
