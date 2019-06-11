@@ -149,61 +149,124 @@ func mapService(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var serviceMappingResult, podMappingResult, replicaSetMappingResult, deploymentMappingResult MapResult
 	var err error
 
-	//Try matching with service
-	serviceMappingResult, err = serviceMatching(obj, store)
-	if err != nil {
-		return MapResult{}, err
-	}
-
-	if !serviceMappingResult.IsMapped {
-		deploymentMappingResult, err = deploymentMatching(obj, store)
+	if obj.EventType != "DELETED" {
+		//Try matching with service
+		serviceMappingResult, err = serviceMatching(obj, store)
 		if err != nil {
 			return MapResult{}, err
 		}
 
-		if !deploymentMappingResult.IsMapped {
-			//Try matching with replica set
-			replicaSetMappingResult, err = replicaSetMatching(obj, store)
+		if !serviceMappingResult.IsMapped {
+			deploymentMappingResult, err = deploymentMatching(obj, store)
 			if err != nil {
 				return MapResult{}, err
 			}
 
-			//Try matching with any individual replica set
-			if !replicaSetMappingResult.IsMapped {
-				podMappingResult, err = podMatching(obj, store)
+			if !deploymentMappingResult.IsMapped {
+				//Try matching with replica set
+				replicaSetMappingResult, err = replicaSetMatching(obj, store)
 				if err != nil {
 					return MapResult{}, err
 				}
 
-				if !podMappingResult.IsMapped {
-					//Service not mapped with any existing mapped resources. Create as an individual resource
-					if obj.Event != nil {
-						service = *obj.Event.(*core_v1.Service).DeepCopy()
+				//Try matching with any individual replica set
+				if !replicaSetMappingResult.IsMapped {
+					podMappingResult, err = podMatching(obj, store)
+					if err != nil {
+						return MapResult{}, err
 					}
 
-					mappedIndividualResource := MappedResource{}
-					mappedIndividualResource.CommonLabel = service.Name
-					mappedIndividualResource.CurrentType = "service"
-					mappedIndividualResource.Namespace = service.Namespace
-					mappedIndividualResource.Kube.Services = append(mappedIndividualResource.Kube.Services, service)
+					if !podMappingResult.IsMapped {
+						//Service not mapped with any existing mapped resources. Create as an individual resource
+						if obj.Event != nil {
+							service = *obj.Event.(*core_v1.Service).DeepCopy()
+						}
 
-					return MapResult{
-						Action:         "Added",
-						IsMapped:       true,
-						MappedResource: mappedIndividualResource,
-					}, nil
+						mappedIndividualResource := MappedResource{}
+						mappedIndividualResource.CommonLabel = service.Name
+						mappedIndividualResource.CurrentType = "service"
+						mappedIndividualResource.Namespace = service.Namespace
+						mappedIndividualResource.Kube.Services = append(mappedIndividualResource.Kube.Services, service)
+
+						return MapResult{
+							Action:         "Added",
+							IsMapped:       true,
+							MappedResource: mappedIndividualResource,
+						}, nil
+					}
+
+					return podMappingResult, nil
 				}
 
-				return podMappingResult, nil
+				return replicaSetMappingResult, nil
 			}
 
-			return replicaSetMappingResult, nil
+			return deploymentMappingResult, nil
 		}
 
-		return deploymentMappingResult, nil
+		return serviceMappingResult, nil
 	}
 
-	return serviceMappingResult, nil
+	//Service is DELETED
+
+	//Try deleting lone service
+	//get lone svc from store
+	var loneSvcKeys []string
+	keys := store.ListKeys()
+	for _, key := range keys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
+			loneSvcKeys = append(loneSvcKeys, key)
+		}
+	}
+
+	if len(loneSvcKeys) > 0 {
+		//Delete that single pod.
+		for _, loneSvcKey := range loneSvcKeys {
+			var newSvcSet []core_v1.Service
+			isMatched := false
+
+			mappedResource, err := getObjectFromStore(loneSvcKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			if len(mappedResource.Kube.Services) > 0 {
+				for _, mappedService := range mappedResource.Kube.Services {
+					if fmt.Sprintf("%s", mappedService.UID) == obj.UID {
+						isMatched = true
+					} else {
+						newSvcSet = append(newSvcSet, mappedService)
+					}
+				}
+
+				if isMatched {
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
+						//It has another resources
+						mappedResource.Kube.Services = nil
+						mappedResource.Kube.Services = newSvcSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            loneSvcKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneSvcKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newSvcSet = nil
+			isMatched = false
+		}
+	}
+
+	return MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETED are supported. Event type '%s' is not supported", obj.EventType)
 }
 
 /*
@@ -215,63 +278,192 @@ func mapDeployment(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var podMappingResult, replicaSetMappingResult, serviceMappingResult, deploymentMappingResult MapResult
 	var err error
 
-	//Try match with itself to figure out it's an update
-	deploymentMappingResult, err = deploymentMatching(obj, store)
-	if err != nil {
-		return MapResult{}, err
-	}
-
-	if !deploymentMappingResult.IsMapped {
-		//Try matching with service
-		serviceMappingResult, err = serviceMatching(obj, store)
+	if obj.EventType != "DELETED" {
+		//Try match with itself to figure out it's an update
+		deploymentMappingResult, err = deploymentMatching(obj, store)
 		if err != nil {
 			return MapResult{}, err
 		}
 
-		if !serviceMappingResult.IsMapped {
-			//Try matching with any individual replica set
-			replicaSetMappingResult, err = replicaSetMatching(obj, store)
+		if !deploymentMappingResult.IsMapped {
+			//Try matching with service
+			serviceMappingResult, err = serviceMatching(obj, store)
 			if err != nil {
 				return MapResult{}, err
 			}
 
-			//Try matching with any individual replica set
-			if !replicaSetMappingResult.IsMapped {
-				podMappingResult, err = podMatching(obj, store)
+			if !serviceMappingResult.IsMapped {
+				//Try matching with any individual replica set
+				replicaSetMappingResult, err = replicaSetMatching(obj, store)
 				if err != nil {
 					return MapResult{}, err
 				}
 
-				if !podMappingResult.IsMapped {
-					//Deployment not mapped with any existing mapped resources. Create as an individual resource
-					if obj.Event != nil {
-						deployment = *obj.Event.(*apps_v1beta2.Deployment).DeepCopy()
+				//Try matching with any individual replica set
+				if !replicaSetMappingResult.IsMapped {
+					podMappingResult, err = podMatching(obj, store)
+					if err != nil {
+						return MapResult{}, err
 					}
 
-					mappedIndividualResource := MappedResource{}
-					mappedIndividualResource.CommonLabel = deployment.Name
-					mappedIndividualResource.CurrentType = "deployment"
-					mappedIndividualResource.Namespace = deployment.Namespace
-					mappedIndividualResource.Kube.Deployments = append(mappedIndividualResource.Kube.Deployments, deployment)
+					if !podMappingResult.IsMapped {
+						//Deployment not mapped with any existing mapped resources. Create as an individual resource
+						if obj.Event != nil {
+							deployment = *obj.Event.(*apps_v1beta2.Deployment).DeepCopy()
+						}
 
-					return MapResult{
-						Action:         "Added",
-						Message:        fmt.Sprintf("Deployment with common label '%s' is added in store", mappedIndividualResource.CommonLabel),
-						IsMapped:       true,
-						MappedResource: mappedIndividualResource,
-					}, nil
+						mappedIndividualResource := MappedResource{}
+						mappedIndividualResource.CommonLabel = deployment.Name
+						mappedIndividualResource.CurrentType = "deployment"
+						mappedIndividualResource.Namespace = deployment.Namespace
+						mappedIndividualResource.Kube.Deployments = append(mappedIndividualResource.Kube.Deployments, deployment)
+
+						return MapResult{
+							Action:         "Added",
+							Message:        fmt.Sprintf("Deployment with common label '%s' is added in store", mappedIndividualResource.CommonLabel),
+							IsMapped:       true,
+							MappedResource: mappedIndividualResource,
+						}, nil
+					}
+
+					return podMappingResult, nil
 				}
 
-				return podMappingResult, nil
+				return replicaSetMappingResult, nil
 			}
 
-			return replicaSetMappingResult, nil
+			return serviceMappingResult, nil
 		}
 
-		return serviceMappingResult, nil
+		return deploymentMappingResult, nil
 	}
 
-	return deploymentMappingResult, nil
+	//Deployment is DELETED
+
+	//Try deleting lone Dep
+	//get lone Dep from store
+	var loneDepKeys []string
+	keys := store.ListKeys()
+	for _, key := range keys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" && strings.Split(key, "/")[2] == obj.Name {
+			loneDepKeys = append(loneDepKeys, key)
+		}
+	}
+
+	if len(loneDepKeys) > 0 {
+		//Delete that single pod.
+		for _, loneDepKey := range loneDepKeys {
+			var newDepSet []apps_v1beta2.Deployment
+			isMatched := false
+
+			mappedResource, err := getObjectFromStore(loneDepKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			if len(mappedResource.Kube.Deployments) > 0 {
+				for _, mappedDeployment := range mappedResource.Kube.Deployments {
+					if fmt.Sprintf("%s", mappedDeployment.UID) == obj.UID {
+						isMatched = true
+					} else {
+						newDepSet = append(newDepSet, mappedDeployment)
+					}
+				}
+
+				if isMatched {
+					if len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
+						//It has another resources
+						mappedResource.Kube.Deployments = nil
+						mappedResource.Kube.Deployments = newDepSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            loneDepKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneDepKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newDepSet = nil
+			isMatched = false
+		}
+	}
+
+	//Try deleting Deployment mapped to Service
+	//get service from store
+	var loneDepSvcKeys []string
+	depSvcKeys := store.ListKeys()
+	for _, key := range depSvcKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
+			loneDepSvcKeys = append(loneDepSvcKeys, key)
+		}
+	}
+
+	if len(loneDepSvcKeys) > 0 {
+		//Delete that single deployment.
+		for _, loneDepSvcKey := range loneDepSvcKeys {
+			var newDepSet []apps_v1beta2.Deployment
+			isMatched := false
+			mappedResource, err := getObjectFromStore(loneDepSvcKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedDeployment := range mappedResource.Kube.Deployments {
+				if fmt.Sprintf("%s", mappedDeployment.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newDepSet = append(newDepSet, mappedDeployment)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
+					//It has another resources
+					mappedResource.Kube.Deployments = nil
+					mappedResource.Kube.Deployments = newDepSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneDepSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.Deployments) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.Deployments = nil
+					mappedResource.Kube.Deployments = newDepSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneDepSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneDepSvcKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newDepSet = nil
+			isMatched = false
+		}
+	}
+
+	return MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETED are supported. Event type '%s' is not supported", obj.EventType)
 }
 
 /*
@@ -283,59 +475,255 @@ func mapReplicaSet(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var podMappingResult, deploymentMappingResult, serviceMappingResult, replicaSetMappingResult MapResult
 	var err error
 
-	//Try matching with itself
-	replicaSetMappingResult, err = replicaSetMatching(obj, store)
-	if !replicaSetMappingResult.IsMapped {
+	if obj.EventType != "DELETED" {
+		//Try matching with itself
+		replicaSetMappingResult, err = replicaSetMatching(obj, store)
+		if !replicaSetMappingResult.IsMapped {
 
-		//Try matching with deployment
-		deploymentMappingResult, err = deploymentMatching(obj, store)
-		if err != nil {
-			return MapResult{}, err
-		}
-
-		//Try matching with service
-		if !deploymentMappingResult.IsMapped {
-			serviceMappingResult, err = serviceMatching(obj, store)
+			//Try matching with deployment
+			deploymentMappingResult, err = deploymentMatching(obj, store)
 			if err != nil {
 				return MapResult{}, err
 			}
 
-			//Try matching with any individual pod
-			if !serviceMappingResult.IsMapped {
-				podMappingResult, err = podMatching(obj, store)
+			//Try matching with service
+			if !deploymentMappingResult.IsMapped {
+				serviceMappingResult, err = serviceMatching(obj, store)
 				if err != nil {
 					return MapResult{}, err
 				}
 
-				if !podMappingResult.IsMapped {
-					//RS not mapped with any existing mapped resources. Create as an individual resource
-					if obj.Event != nil {
-						replicaSet = *obj.Event.(*ext_v1beta1.ReplicaSet).DeepCopy()
+				//Try matching with any individual pod
+				if !serviceMappingResult.IsMapped {
+					podMappingResult, err = podMatching(obj, store)
+					if err != nil {
+						return MapResult{}, err
 					}
 
-					mappedIndividualResource := MappedResource{}
-					mappedIndividualResource.CommonLabel = replicaSet.Name
-					mappedIndividualResource.CurrentType = "replicaset"
-					mappedIndividualResource.Namespace = replicaSet.Namespace
-					mappedIndividualResource.Kube.ReplicaSets = append(mappedIndividualResource.Kube.ReplicaSets, replicaSet)
+					if !podMappingResult.IsMapped {
+						//RS not mapped with any existing mapped resources. Create as an individual resource
+						if obj.Event != nil {
+							replicaSet = *obj.Event.(*ext_v1beta1.ReplicaSet).DeepCopy()
+						}
 
-					return MapResult{
-						Action:         "Added",
-						IsMapped:       true,
-						MappedResource: mappedIndividualResource,
-					}, nil
+						mappedIndividualResource := MappedResource{}
+						mappedIndividualResource.CommonLabel = replicaSet.Name
+						mappedIndividualResource.CurrentType = "replicaset"
+						mappedIndividualResource.Namespace = replicaSet.Namespace
+						mappedIndividualResource.Kube.ReplicaSets = append(mappedIndividualResource.Kube.ReplicaSets, replicaSet)
+
+						return MapResult{
+							Action:         "Added",
+							IsMapped:       true,
+							MappedResource: mappedIndividualResource,
+						}, nil
+					}
+
+					return podMappingResult, nil
 				}
+				return serviceMappingResult, nil
 
-				return podMappingResult, nil
 			}
-			return serviceMappingResult, nil
 
+			return deploymentMappingResult, nil
 		}
 
-		return deploymentMappingResult, nil
+		return replicaSetMappingResult, nil
 	}
 
-	return replicaSetMappingResult, nil
+	//RS is DELETED
+
+	//Try deleting lone RS
+	//get lone RS from store
+	var loneRsKeys []string
+	keys := store.ListKeys()
+	for _, key := range keys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" && strings.Split(key, "/")[2] == obj.Name {
+			loneRsKeys = append(loneRsKeys, key)
+		}
+	}
+
+	if len(loneRsKeys) > 0 {
+		//Delete that single pod.
+		for _, loneRsKey := range loneRsKeys {
+			var newRsSet []ext_v1beta1.ReplicaSet
+			isMatched := false
+
+			mappedResource, err := getObjectFromStore(loneRsKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			if len(mappedResource.Kube.ReplicaSets) > 0 {
+				for _, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
+					if fmt.Sprintf("%s", mappedReplicaSet.UID) == obj.UID {
+						isMatched = true
+					} else {
+						newRsSet = append(newRsSet, mappedReplicaSet)
+					}
+				}
+
+				if isMatched {
+					if len(mappedResource.Kube.Pods) > 0 {
+						//It has another resources
+						mappedResource.Kube.ReplicaSets = nil
+						mappedResource.Kube.ReplicaSets = newRsSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            loneRsKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneRsKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+
+				}
+			}
+			newRsSet = nil
+			isMatched = false
+		}
+	}
+
+	//Try deleting RS mapped to Deployment
+	//get pod from store
+	var loneRsDepKeys []string
+	podDepKeys := store.ListKeys()
+	for _, key := range podDepKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" {
+			loneRsDepKeys = append(loneRsDepKeys, key)
+		}
+	}
+
+	if len(loneRsDepKeys) > 0 {
+		//Delete that single pod.
+		for _, loneRsDepKey := range loneRsDepKeys {
+			var newRsSet []ext_v1beta1.ReplicaSet
+			isMatched := false
+			mappedResource, err := getObjectFromStore(loneRsDepKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedRs := range mappedResource.Kube.ReplicaSets {
+				if fmt.Sprintf("%s", mappedRs.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newRsSet = append(newRsSet, mappedRs)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.Pods) > 0 {
+					//It has another resources
+					mappedResource.Kube.ReplicaSets = nil
+					mappedResource.Kube.ReplicaSets = newRsSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneRsDepKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.ReplicaSets) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.ReplicaSets = nil
+					mappedResource.Kube.ReplicaSets = newRsSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneRsDepKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneRsDepKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newRsSet = nil
+			isMatched = false
+		}
+	}
+
+	//Try deleting RS mapped to Service
+	//get pod from store
+	var loneRsSvcKeys []string
+	rsSvcKeys := store.ListKeys()
+	for _, key := range rsSvcKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
+			loneRsSvcKeys = append(loneRsSvcKeys, key)
+		}
+	}
+
+	if len(loneRsSvcKeys) > 0 {
+		//Delete that single pod.
+		for _, loneRsSvcKey := range loneRsSvcKeys {
+			var newRsSet []ext_v1beta1.ReplicaSet
+			isMatched := false
+			mappedResource, err := getObjectFromStore(loneRsSvcKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedPod := range mappedResource.Kube.ReplicaSets {
+				if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newRsSet = append(newRsSet, mappedPod)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.Pods) > 0 {
+					//It has another resources
+					mappedResource.Kube.ReplicaSets = nil
+					mappedResource.Kube.ReplicaSets = newRsSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneRsSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.ReplicaSets) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.ReplicaSets = nil
+					mappedResource.Kube.ReplicaSets = newRsSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            loneRsSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         loneRsSvcKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newRsSet = nil
+			isMatched = false
+		}
+	}
+
+	return MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETED are supported. Event type '%s' is not supported", obj.EventType)
 }
 
 /*
@@ -346,60 +734,299 @@ func mapPod(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var rsMappingResult, deploymentMappingResult, serviceMappingResult, podMappingResult MapResult
 	var err error
 
-	//Try to map with itself to Update
-	podMappingResult, err = podMatching(obj, store)
-	if err != nil {
-		return MapResult{}, err
-	}
+	if obj.EventType != "DELETED" {
 
-	if !podMappingResult.IsMapped {
-
-		rsMappingResult, err = replicaSetMatching(obj, store)
+		//Try to map with itself to Update
+		podMappingResult, err = podMatching(obj, store)
 		if err != nil {
 			return MapResult{}, err
 		}
 
-		if !rsMappingResult.IsMapped {
-			deploymentMappingResult, err = deploymentMatching(obj, store)
+		if !podMappingResult.IsMapped {
+
+			rsMappingResult, err = replicaSetMatching(obj, store)
 			if err != nil {
 				return MapResult{}, err
 			}
 
-			if !deploymentMappingResult.IsMapped {
-				serviceMappingResult, err = serviceMatching(obj, store)
+			if !rsMappingResult.IsMapped {
+				deploymentMappingResult, err = deploymentMatching(obj, store)
 				if err != nil {
 					return MapResult{}, err
 				}
 
-				if !serviceMappingResult.IsMapped {
-					//It's an individual pod. Create it
-					if obj.Event != nil {
-						pod = *obj.Event.(*core_v1.Pod).DeepCopy()
+				if !deploymentMappingResult.IsMapped {
+					serviceMappingResult, err = serviceMatching(obj, store)
+					if err != nil {
+						return MapResult{}, err
 					}
 
-					mappedIndividualResource := MappedResource{}
-					mappedIndividualResource.CommonLabel = pod.Name
-					mappedIndividualResource.CurrentType = "pod"
-					mappedIndividualResource.Namespace = pod.Namespace
-					mappedIndividualResource.Kube.Pods = append(mappedIndividualResource.Kube.Pods, pod)
+					if !serviceMappingResult.IsMapped {
+						//It's an individual pod. Create it
+						if obj.Event != nil {
+							pod = *obj.Event.(*core_v1.Pod).DeepCopy()
+						}
 
-					return MapResult{
-						Action:         "Added",
-						IsMapped:       true,
-						MappedResource: mappedIndividualResource,
-					}, nil
+						mappedIndividualResource := MappedResource{}
+						mappedIndividualResource.CommonLabel = pod.Name
+						mappedIndividualResource.CurrentType = "pod"
+						mappedIndividualResource.Namespace = pod.Namespace
+						mappedIndividualResource.Kube.Pods = append(mappedIndividualResource.Kube.Pods, pod)
+
+						return MapResult{
+							Action:         "Added",
+							IsMapped:       true,
+							MappedResource: mappedIndividualResource,
+						}, nil
+					}
+
+					return serviceMappingResult, nil
 				}
 
-				return serviceMappingResult, nil
+				return deploymentMappingResult, nil
 			}
 
-			return deploymentMappingResult, nil
+			return rsMappingResult, nil
 		}
 
-		return rsMappingResult, nil
+		return podMappingResult, nil
 	}
 
-	return podMappingResult, nil
+	//Pod is DELETED
+
+	//Try deleting lone pod
+	//get lone pod from store
+	var lonePodKeys []string
+	keys := store.ListKeys()
+	for _, key := range keys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "pod" && strings.Split(key, "/")[2] == obj.Name {
+			lonePodKeys = append(lonePodKeys, key)
+		}
+	}
+
+	if len(lonePodKeys) > 0 {
+		//Delete that single pod.
+		for _, lonePodKey := range lonePodKeys {
+			mappedResource, err := getObjectFromStore(lonePodKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			if len(mappedResource.Kube.Pods) > 0 {
+				for _, mappedPod := range mappedResource.Kube.Pods {
+					if fmt.Sprintf("%s", mappedPod.UID) == obj.UID && len(mappedResource.Kube.Pods) == 1 {
+						return MapResult{
+							Action:      "Deleted",
+							Key:         lonePodKey,
+							CommonLabel: mappedResource.CommonLabel,
+							IsMapped:    true,
+						}, nil
+					}
+				}
+			}
+		}
+	}
+
+	//Try deleting pod mapped to RS
+	//get pod from store
+	var lonePodRsKeys []string
+	podRsKeys := store.ListKeys()
+	for _, key := range podRsKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" {
+			lonePodRsKeys = append(lonePodRsKeys, key)
+		}
+	}
+
+	if len(lonePodRsKeys) > 0 {
+		//Delete that single pod.
+		for _, lonePodRsKey := range lonePodRsKeys {
+			var newPodSet []core_v1.Pod
+			isMatched := false
+			mappedResource, err := getObjectFromStore(lonePodRsKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedPod := range mappedResource.Kube.Pods {
+				if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newPodSet = append(newPodSet, mappedPod)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
+					//It has another resources
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodRsKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.Pods) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodRsKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         lonePodRsKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newPodSet = nil
+			isMatched = false
+		}
+	}
+
+	//Try deleting pod mapped to Deployment
+	//get pod from store
+	var lonePodDepKeys []string
+	podDepKeys := store.ListKeys()
+	for _, key := range podDepKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" {
+			lonePodDepKeys = append(lonePodDepKeys, key)
+		}
+	}
+
+	if len(lonePodDepKeys) > 0 {
+		//Delete that single pod.
+		for _, lonePodDepKey := range lonePodDepKeys {
+			var newPodSet []core_v1.Pod
+			isMatched := false
+			mappedResource, err := getObjectFromStore(lonePodDepKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedPod := range mappedResource.Kube.Pods {
+				if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newPodSet = append(newPodSet, mappedPod)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
+					//It has another resources
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodDepKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.Pods) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodDepKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         lonePodDepKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newPodSet = nil
+			isMatched = false
+		}
+	}
+
+	//Try deleting pod mapped to Service
+	//get pod from store
+	var lonePodSvcKeys []string
+	podSvcKeys := store.ListKeys()
+	for _, key := range podSvcKeys {
+		//To update lone pod. get them by exact name
+		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
+			lonePodSvcKeys = append(lonePodSvcKeys, key)
+		}
+	}
+
+	if len(lonePodSvcKeys) > 0 {
+		//Delete that single pod.
+		for _, lonePodSvcKey := range lonePodSvcKeys {
+			var newPodSet []core_v1.Pod
+			isMatched := false
+			mappedResource, err := getObjectFromStore(lonePodSvcKey, store)
+			if err != nil {
+				return MapResult{}, err
+			}
+
+			for _, mappedPod := range mappedResource.Kube.Pods {
+				if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
+					isMatched = true
+				} else {
+					newPodSet = append(newPodSet, mappedPod)
+				}
+			}
+
+			if isMatched {
+				if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
+					//It has another resources
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else if len(mappedResource.Kube.Pods) > 1 {
+					//It has more than one pod
+					mappedResource.Kube.Pods = nil
+					mappedResource.Kube.Pods = newPodSet
+
+					return MapResult{
+						Action:         "Updated",
+						Key:            lonePodSvcKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				} else {
+					return MapResult{
+						Action:      "Deleted",
+						Key:         lonePodSvcKey,
+						CommonLabel: mappedResource.CommonLabel,
+						IsMapped:    true,
+					}, nil
+				}
+			}
+			newPodSet = nil
+			isMatched = false
+		}
+	}
+
+	return MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETEd are supported. Event type '%s' is not supported", obj.EventType)
 }
 
 // //Ingress Matching
@@ -621,286 +1248,49 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		}
 
 	case *core_v1.Pod:
-		switch obj.EventType {
-		case "ADDED", "UPDATED":
-			//Find any individual pods matching this deployments
-			var pod core_v1.Pod
+		//Find any individual pods matching this deployments
+		var pod core_v1.Pod
 
-			//get pod from store
-			keys := store.ListKeys()
-			for _, key := range keys {
-				//To update lone pod. get them by exact name
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "pod" && strings.Split(key, "/")[2] == obj.Name {
-					podKeys = append(podKeys, key)
-				}
+		//get pod from store
+		keys := store.ListKeys()
+		for _, key := range keys {
+			//To update lone pod. get them by exact name
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "pod" && strings.Split(key, "/")[2] == obj.Name {
+				podKeys = append(podKeys, key)
+			}
+		}
+
+		if obj.Event != nil {
+			pod = *obj.Event.(*core_v1.Pod).DeepCopy()
+		}
+
+		for _, podKey := range podKeys {
+			mappedResource, err := getObjectFromStore(podKey, store)
+			if err != nil {
+				return MapResult{}, err
 			}
 
-			if obj.Event != nil {
-				pod = *obj.Event.(*core_v1.Pod).DeepCopy()
-			}
-
-			for _, podKey := range podKeys {
-				mappedResource, err := getObjectFromStore(podKey, store)
-				if err != nil {
-					return MapResult{}, err
-				}
-
-				//See if pod matched to any of RS
-				var newPodSet []core_v1.Pod
-				if len(mappedResource.Kube.Pods) > 0 {
-					for _, mappedPod := range mappedResource.Kube.Pods {
-						if mappedPod.Name == pod.Name && mappedPod.UID == pod.UID {
-							//Update it
-							newPodSet = append(newPodSet, pod)
-						} else {
-							newPodSet = append(newPodSet, mappedPod)
-						}
-					}
-
-					mappedResource.Kube.Pods = nil
-					mappedResource.Kube.Pods = newPodSet
-
-					return MapResult{
-						Action:         "Added",
-						Key:            podKey,
-						IsMapped:       true,
-						MappedResource: mappedResource,
-					}, nil
-				}
-			}
-		case "DELETED":
-			var pod core_v1.Pod
-
-			if obj.Event != nil {
-				pod = *obj.Event.(*core_v1.Pod).DeepCopy()
-			}
-
-			//Try deleting lone pod
-			//get lone pod from store
-			var lonePodKeys []string
-			keys := store.ListKeys()
-			for _, key := range keys {
-				//To update lone pod. get them by exact name
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "pod" && strings.Split(key, "/")[2] == obj.Name {
-					lonePodKeys = append(lonePodKeys, key)
-				}
-			}
-
-			if len(lonePodKeys) > 0 {
-				//Delete that single pod.
-				for _, lonePodKey := range lonePodKeys {
-					mappedResource, err := getObjectFromStore(lonePodKey, store)
-					if err != nil {
-						return MapResult{}, err
-					}
-
-					if len(mappedResource.Kube.Pods) > 0 {
-						for _, mappedPod := range mappedResource.Kube.Pods {
-							if mappedPod.UID == pod.UID && len(mappedResource.Kube.Pods) == 1 {
-								return MapResult{
-									Action:   "Deleted",
-									Key:      lonePodKey,
-									IsMapped: true,
-								}, nil
-							}
-						}
+			//See if pod matched to any of RS
+			var newPodSet []core_v1.Pod
+			if len(mappedResource.Kube.Pods) > 0 {
+				for _, mappedPod := range mappedResource.Kube.Pods {
+					if mappedPod.Name == pod.Name && mappedPod.UID == pod.UID {
+						//Update it
+						newPodSet = append(newPodSet, pod)
+					} else {
+						newPodSet = append(newPodSet, mappedPod)
 					}
 				}
-			}
 
-			//Try deleting pod mapped to RS
-			//get pod from store
-			var lonePodRsKeys []string
-			podRsKeys := store.ListKeys()
-			for _, key := range podRsKeys {
-				//To update lone pod. get them by exact name
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "replicaset" {
-					lonePodRsKeys = append(lonePodRsKeys, key)
-				}
-			}
+				mappedResource.Kube.Pods = nil
+				mappedResource.Kube.Pods = newPodSet
 
-			if len(lonePodRsKeys) > 0 {
-				//Delete that single pod.
-				for _, lonePodRsKey := range lonePodRsKeys {
-					var newPodSet []core_v1.Pod
-					isMatched := false
-					mappedResource, err := getObjectFromStore(lonePodRsKey, store)
-					if err != nil {
-						return MapResult{}, err
-					}
-
-					for _, mappedPod := range mappedResource.Kube.Pods {
-						if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
-							isMatched = true
-						} else {
-							newPodSet = append(newPodSet, mappedPod)
-						}
-					}
-
-					if isMatched {
-						if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
-							//It has another resources
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodRsKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else if len(mappedResource.Kube.Pods) > 1 {
-							//It has more than one pod
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodRsKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else {
-							return MapResult{
-								Action:   "Deleted",
-								Key:      lonePodRsKey,
-								IsMapped: true,
-							}, nil
-						}
-					}
-					newPodSet = nil
-					isMatched = false
-				}
-			}
-
-			//Try deleting pod mapped to Deployment
-			//get pod from store
-			var lonePodDepKeys []string
-			podDepKeys := store.ListKeys()
-			for _, key := range podDepKeys {
-				//To update lone pod. get them by exact name
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" {
-					lonePodDepKeys = append(lonePodDepKeys, key)
-				}
-			}
-
-			if len(lonePodDepKeys) > 0 {
-				//Delete that single pod.
-				for _, lonePodDepKey := range lonePodDepKeys {
-					var newPodSet []core_v1.Pod
-					isMatched := false
-					mappedResource, err := getObjectFromStore(lonePodDepKey, store)
-					if err != nil {
-						return MapResult{}, err
-					}
-
-					for _, mappedPod := range mappedResource.Kube.Pods {
-						if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
-							isMatched = true
-						} else {
-							newPodSet = append(newPodSet, mappedPod)
-						}
-					}
-
-					if isMatched {
-						if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
-							//It has another resources
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodDepKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else if len(mappedResource.Kube.Pods) > 1 {
-							//It has more than one pod
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodDepKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else {
-							return MapResult{
-								Action:   "Deleted",
-								Key:      lonePodDepKey,
-								IsMapped: true,
-							}, nil
-						}
-					}
-					newPodSet = nil
-					isMatched = false
-				}
-			}
-
-			//Try deleting pod mapped to Service
-			//get pod from store
-			var lonePodSvcKeys []string
-			podSvcKeys := store.ListKeys()
-			for _, key := range podSvcKeys {
-				//To update lone pod. get them by exact name
-				if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
-					lonePodSvcKeys = append(lonePodSvcKeys, key)
-				}
-			}
-
-			if len(lonePodSvcKeys) > 0 {
-				//Delete that single pod.
-				for _, lonePodSvcKey := range lonePodSvcKeys {
-					var newPodSet []core_v1.Pod
-					isMatched := false
-					mappedResource, err := getObjectFromStore(lonePodSvcKey, store)
-					if err != nil {
-						return MapResult{}, err
-					}
-
-					for _, mappedPod := range mappedResource.Kube.Pods {
-						if fmt.Sprintf("%s", mappedPod.UID) == obj.UID {
-							isMatched = true
-						} else {
-							newPodSet = append(newPodSet, mappedPod)
-						}
-					}
-
-					if isMatched {
-						if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
-							//It has another resources
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodSvcKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else if len(mappedResource.Kube.Pods) > 1 {
-							//It has more than one pod
-							mappedResource.Kube.Pods = nil
-							mappedResource.Kube.Pods = newPodSet
-
-							return MapResult{
-								Action:         "Updated",
-								Key:            lonePodSvcKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							}, nil
-						} else {
-							return MapResult{
-								Action:   "Deleted",
-								Key:      lonePodSvcKey,
-								IsMapped: true,
-							}, nil
-						}
-					}
-					newPodSet = nil
-					isMatched = false
-				}
+				return MapResult{
+					Action:         "Added",
+					Key:            podKey,
+					IsMapped:       true,
+					MappedResource: mappedResource,
+				}, nil
 			}
 		}
 	default:

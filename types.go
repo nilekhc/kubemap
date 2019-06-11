@@ -78,6 +78,7 @@ type MapResult struct {
 	Key            string
 	Action         string
 	Message        string
+	CommonLabel    string
 	DeleteKeys     []string
 	IsMapped       bool
 	MappedResource MappedResource
