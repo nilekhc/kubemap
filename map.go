@@ -89,7 +89,21 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	}
 
 	if obj.EventType == "ADDED" {
-		return addIngress(ingress, obj, store)
+		addResults, err := addIngress(ingress, obj, store)
+		if err != nil {
+			return []MapResult{}, err
+		}
+
+		storeErr := updateStore(addResults, store)
+		if storeErr != nil {
+			return []MapResult{}, storeErr
+		}
+
+		for _, addResult := range addResults {
+			addResult.IsStoreUpdated = true
+		}
+
+		return addResults, err
 	}
 
 	if obj.EventType == "UPDATED" {
@@ -99,24 +113,58 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			return mapResult, delErr
 		}
 
+		storeErr := updateStore(delResults, store)
+		if storeErr != nil {
+			return []MapResult{}, storeErr
+		}
+
 		for _, delResult := range delResults {
+			delResult.IsStoreUpdated = true
 			mapResult = append(mapResult, delResult)
 		}
+
+		// for _, delResult := range delResults {
+		// 	mapResult = append(mapResult, delResult)
+		// }
 
 		addResults, addErr := addIngress(ingress, obj, store)
 		if addErr != nil {
 			return mapResult, addErr
 		}
 
+		storeErr = updateStore(addResults, store)
+		if storeErr != nil {
+			return []MapResult{}, storeErr
+		}
+
 		for _, addResult := range addResults {
+			addResult.IsStoreUpdated = true
 			mapResult = append(mapResult, addResult)
 		}
+
+		// for _, addResult := range addResults {
+		// 	mapResult = append(mapResult, addResult)
+		// }
 
 		return mapResult, nil
 	}
 
 	if obj.EventType == "DELETED" {
-		return deleteIngress(obj, store)
+		deleteResults, err := deleteIngress(obj, store)
+		if err != nil {
+			return []MapResult{}, err
+		}
+
+		storeErr := updateStore(deleteResults, store)
+		if storeErr != nil {
+			return []MapResult{}, storeErr
+		}
+
+		for _, deleteResult := range deleteResults {
+			deleteResult.IsStoreUpdated = true
+		}
+
+		return deleteResults, err
 	}
 
 	return []MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETED are supported. Event type '%s' is not supported", obj.EventType)
@@ -2584,7 +2632,7 @@ func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
 
 func updateStore(results []MapResult, store cache.Store) error {
 	for _, result := range results {
-		if result.IsMapped {
+		if result.IsMapped && !result.IsStoreUpdated {
 			switch result.Action {
 			case "Added", "Updated":
 				if result.Key != "" {

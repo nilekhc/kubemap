@@ -81,5 +81,6 @@ type MapResult struct {
 	CommonLabel    string
 	DeleteKeys     []string
 	IsMapped       bool
+	IsStoreUpdated bool
 	MappedResource MappedResource
 }
