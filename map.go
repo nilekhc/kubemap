@@ -351,7 +351,7 @@ func deleteIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 							serviceNames = append(serviceNames, newMappedService.Name)
 						}
 
-						mappedResource.CommonLabel = strings.Join(serviceNames, ",")
+						mappedResource.CommonLabel = strings.Join(serviceNames, ", ")
 
 						result := MapResult{
 							Action:      "Deleted",
@@ -2201,12 +2201,18 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 
 							//Update Common Label
 							if len(mappedResource.Kube.Ingresses) > 0 {
-								//var ingressNames []string
+								// //var ingressNames []string
+								// for _, mappedIngress := range mappedResource.Kube.Ingresses {
+								// 	// ingressNames = append(ingressNames, mappedIngress.Name)
+								// 	mappedResource.CommonLabel = mappedIngress.Name
+								// 	break
+								// }
+
+								var ingressNames []string
 								for _, mappedIngress := range mappedResource.Kube.Ingresses {
-									// ingressNames = append(ingressNames, mappedIngress.Name)
-									mappedResource.CommonLabel = mappedIngress.Name
-									break
+									ingressNames = append(ingressNames, mappedIngress.Name)
 								}
+								mappedResource.CommonLabel = strings.Join(ingressNames, ", ")
 							}
 
 							return MapResult{
