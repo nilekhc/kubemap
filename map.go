@@ -2201,18 +2201,16 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 
 							//Update Common Label
 							if len(mappedResource.Kube.Ingresses) > 0 {
-								// //var ingressNames []string
-								// for _, mappedIngress := range mappedResource.Kube.Ingresses {
-								// 	// ingressNames = append(ingressNames, mappedIngress.Name)
-								// 	mappedResource.CommonLabel = mappedIngress.Name
-								// 	break
-								// }
-
-								var ingressNames []string
 								for _, mappedIngress := range mappedResource.Kube.Ingresses {
-									ingressNames = append(ingressNames, mappedIngress.Name)
+									mappedResource.CommonLabel = mappedIngress.Name
+									break
 								}
-								mappedResource.CommonLabel = strings.Join(ingressNames, ", ")
+
+								// var ingressNames []string
+								// for _, mappedIngress := range mappedResource.Kube.Ingresses {
+								// 	ingressNames = append(ingressNames, mappedIngress.Name)
+								// }
+								// mappedResource.CommonLabel = strings.Join(ingressNames, ", ")
 							}
 
 							return MapResult{
