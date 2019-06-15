@@ -2200,19 +2200,19 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 
 							mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
 
-							//Update Common Label
-							if len(mappedResource.Kube.Ingresses) > 0 {
-								// for _, mappedIngress := range mappedResource.Kube.Ingresses {
-								// 	mappedResource.CommonLabel = mappedIngress.Name
-								// 	break
-								// }
+							// //Update Common Label
+							// if len(mappedResource.Kube.Ingresses) > 0 {
+							// 	// for _, mappedIngress := range mappedResource.Kube.Ingresses {
+							// 	// 	mappedResource.CommonLabel = mappedIngress.Name
+							// 	// 	break
+							// 	// }
 
-								var ingressNames []string
-								for _, mappedIngress := range mappedResource.Kube.Ingresses {
-									ingressNames = append(ingressNames, mappedIngress.Name)
-								}
-								mappedResource.CommonLabel = strings.Join(ingressNames, "-")
-							}
+							// 	var ingressNames []string
+							// 	for _, mappedIngress := range mappedResource.Kube.Ingresses {
+							// 		ingressNames = append(ingressNames, mappedIngress.Name)
+							// 	}
+							// 	mappedResource.CommonLabel = strings.Join(ingressNames, "-")
+							// }
 
 							return MapResult{
 								Action:         "Updated",
