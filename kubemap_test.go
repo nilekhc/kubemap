@@ -42,31 +42,31 @@ func helperGetK8sResources() KubeResources {
 	var ingress ext_v1beta1.Ingress
 	ingressContent := helperGetFileContent("ingress.json")
 	json.Unmarshal(ingressContent, &ingress)
-	kubeResources.ingresses = append(kubeResources.ingresses, ingress)
+	kubeResources.Ingresses = append(kubeResources.Ingresses, ingress)
 
 	//Get Service
 	var service core_v1.Service
 	serviceContent := helperGetFileContent("service.json")
 	json.Unmarshal(serviceContent, &service)
-	kubeResources.services = append(kubeResources.services, service)
+	kubeResources.Services = append(kubeResources.Services, service)
 
 	//Get Deployment
 	var deployment apps_v1beta2.Deployment
 	deploymentContent := helperGetFileContent("deployment.json")
 	json.Unmarshal(deploymentContent, &deployment)
-	kubeResources.deployments = append(kubeResources.deployments, deployment)
+	kubeResources.Deployments = append(kubeResources.Deployments, deployment)
 
 	//Get Replica Set
 	var replicaSet ext_v1beta1.ReplicaSet
 	replicaSetContent := helperGetFileContent("replicaset.json")
 	json.Unmarshal(replicaSetContent, &replicaSet)
-	kubeResources.replicaSets = append(kubeResources.replicaSets, replicaSet)
+	kubeResources.ReplicaSets = append(kubeResources.ReplicaSets, replicaSet)
 
 	//Get pod
 	var pod core_v1.Pod
 	podContent := helperGetFileContent("pod.json")
 	json.Unmarshal(podContent, &pod)
-	kubeResources.pods = append(kubeResources.pods, pod)
+	kubeResources.Pods = append(kubeResources.Pods, pod)
 
 	return kubeResources
 }

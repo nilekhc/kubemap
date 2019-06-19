@@ -11,24 +11,12 @@ import (
 //KubeResources is collection of different types of k8s resource for mapping.
 //ToDo : Add support for other k8s resources.
 type KubeResources struct {
-	ingresses   []ext_v1beta1.Ingress
-	services    []core_v1.Service
-	deployments []apps_v1beta2.Deployment
-	replicaSets []ext_v1beta1.ReplicaSet
-	pods        []core_v1.Pod
+	Ingresses   []ext_v1beta1.Ingress
+	Services    []core_v1.Service
+	Deployments []apps_v1beta2.Deployment
+	ReplicaSets []ext_v1beta1.ReplicaSet
+	Pods        []core_v1.Pod
 }
-
-// //MappedResource is final mapped output of interlinked K8s resources
-// type MappedResource struct {
-// 	CommonLabel string                    `json:"commonLabel,omitempty"`
-// 	Namespace   string                    `json:"namespace,omitempty"`
-// 	CurrentType string                    `json:"currentType,omitempty"`
-// 	Ingresses   []ext_v1beta1.Ingress     `json:"ingresses,omitempty"`
-// 	Services    []core_v1.Service         `json:"services,omitempty"`
-// 	Deployments []apps_v1beta2.Deployment `json:"deployments,omitempty"`
-// 	ReplicaSets []ext_v1beta1.ReplicaSet  `json:"replicaSets,omitempty"`
-// 	Pods        []core_v1.Pod             `json:"pods,omitempty"`
-// }
 
 //MappedResource is final mapped output of interlinked K8s resources
 type MappedResource struct {
@@ -69,8 +57,6 @@ type ResourceEvent struct {
 	ResourceType string
 	Name         string
 	Event        interface{}
-	// RawObj        interface{}
-	// UpdatedRawObj interface{}
 }
 
 //MapResult ...

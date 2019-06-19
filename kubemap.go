@@ -114,27 +114,27 @@ func getAllMappedResources(store cache.Store) MappedResources {
 
 func addResourcesForMapping(resources KubeResources, queue workqueue.RateLimitingInterface) {
 	//Add ingresses
-	for _, ingress := range resources.ingresses {
+	for _, ingress := range resources.Ingresses {
 		queue.Add(gerResourceEvent(&ingress, "ingress"))
 	}
 
 	//Add services
-	for _, service := range resources.services {
+	for _, service := range resources.Services {
 		queue.Add(gerResourceEvent(&service, "service"))
 	}
 
 	//Add deployments
-	for _, deployment := range resources.deployments {
+	for _, deployment := range resources.Deployments {
 		queue.Add(gerResourceEvent(&deployment, "deployment"))
 	}
 
 	//Add replica sets
-	for _, replicaSet := range resources.replicaSets {
+	for _, replicaSet := range resources.ReplicaSets {
 		queue.Add(gerResourceEvent(&replicaSet, "replicaset"))
 	}
 
 	//Add pods
-	for _, pod := range resources.pods {
+	for _, pod := range resources.Pods {
 		queue.Add(gerResourceEvent(&pod, "pod"))
 	}
 }
