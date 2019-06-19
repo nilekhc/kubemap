@@ -88,21 +88,6 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 	if obj.EventType == "ADDED" {
 		return addIngress(ingress, obj, store)
-		// addResults, err := addIngress(ingress, obj, store)
-		// if err != nil {
-		// 	return []MapResult{}, err
-		// }
-
-		// storeErr := updateStore(addResults, store)
-		// if storeErr != nil {
-		// 	return []MapResult{}, storeErr
-		// }
-
-		// for _, addResult := range addResults {
-		// 	addResult.IsStoreUpdated = true
-		// }
-
-		// return addResults, err
 	}
 
 	if obj.EventType == "UPDATED" {
@@ -122,10 +107,6 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mapResult = append(mapResult, delResult)
 		}
 
-		// for _, delResult := range delResults {
-		// 	mapResult = append(mapResult, delResult)
-		// }
-
 		addResults, addErr := addIngress(ingress, obj, store)
 		if addErr != nil {
 			return mapResult, addErr
@@ -141,30 +122,11 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mapResult = append(mapResult, addResult)
 		}
 
-		// for _, addResult := range addResults {
-		// 	mapResult = append(mapResult, addResult)
-		// }
-
 		return mapResult, nil
 	}
 
 	if obj.EventType == "DELETED" {
 		return deleteIngress(obj, store)
-		// deleteResults, err := deleteIngress(obj, store)
-		// if err != nil {
-		// 	return []MapResult{}, err
-		// }
-
-		// storeErr := updateStore(deleteResults, store)
-		// if storeErr != nil {
-		// 	return []MapResult{}, storeErr
-		// }
-
-		// for _, deleteResult := range deleteResults {
-		// 	deleteResult.IsStoreUpdated = true
-		// }
-
-		// return deleteResults, err
 	}
 
 	return []MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETED are supported. Event type '%s' is not supported", obj.EventType)
@@ -241,92 +203,106 @@ func deleteIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 	var newIngressSet []ext_v1beta1.Ingress
 	if len(ingressSvcKeys) > 0 {
-		//Delete that single pod.
 		for _, ingressSvcKey := range ingressSvcKeys {
 			newIngressSet = nil
 			mappedResource, err := getObjectFromStore(ingressSvcKey, store)
-			// copyOfMappedResource := copyMappedResource(mappedResource)
 			if err != nil {
 				return []MapResult{}, err
 			}
 
 			if len(mappedResource.Kube.Ingresses) > 0 {
-				//isMatched := false
+				isMatched := false
 				for _, mappedIngress := range mappedResource.Kube.Ingresses {
-					// if fmt.Sprintf("%s", mappedIngress.UID) == obj.UID {
-					// 	isMatched = true
-					// } else {
-					// 	newIngressSet = append(newIngressSet, mappedIngress)
-					// }
-					if fmt.Sprintf("%s", mappedIngress.UID) != obj.UID {
+					if fmt.Sprintf("%s", mappedIngress.UID) == obj.UID {
+						isMatched = true
+					} else {
 						newIngressSet = append(newIngressSet, mappedIngress)
 					}
+					// if fmt.Sprintf("%s", mappedIngress.UID) != obj.UID {
+					// 	newIngressSet = append(newIngressSet, mappedIngress)
+					// }
 				}
 
-				// if isMatched {
-				if len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
-					//It has another resources
-					mappedResource.Kube.Ingresses = nil
-					mappedResource.Kube.Ingresses = newIngressSet
+				if isMatched {
+					if len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
+						//It has another resources
+						mappedResource.Kube.Ingresses = nil
+						mappedResource.Kube.Ingresses = newIngressSet
 
-					// //Update Common Label
-					// if len(mappedResource.Kube.Ingresses) > 0 {
-					// 	var ingressNames []string
-					// 	for _, mappedIngress := range mappedResource.Kube.Ingresses {
-					// 		ingressNames = append(ingressNames, mappedIngress.Name)
-					// 	}
-					// 	commonLabel := strings.Join(ingressNames, "-")
-					// 	if commonLabel != mappedResource.CommonLabel {
-					// 		mappedResource.CommonLabel = strings.Join(ingressNames, "-")
+						// //Update Common Label
+						// if len(mappedResource.Kube.Ingresses) > 0 {
+						// 	var ingressNames []string
+						// 	for _, mappedIngress := range mappedResource.Kube.Ingresses {
+						// 		ingressNames = append(ingressNames, mappedIngress.Name)
+						// 	}
+						// 	commonLabel := strings.Join(ingressNames, "-")
+						// 	if commonLabel != mappedResource.CommonLabel {
+						// 		mappedResource.CommonLabel = strings.Join(ingressNames, "-")
 
-					// 		//Since we updated the common label. Delete old resource from local store
-					// 		deleteResource := MapResult{
-					// 			Action:         "ForceDeleted",
-					// 			Key:            ingressSvcKey,
-					// 			IsMapped:       true,
-					// 			IsStoreUpdated: true, //Make it as store updated so it will be just sent as an event
-					// 			MappedResource: copyOfMappedResource,
-					// 			CommonLabel:    copyOfMappedResource.CommonLabel,
-					// 		}
+						// 		//Since we updated the common label. Delete old resource from local store
+						// 		deleteResource := MapResult{
+						// 			Action:         "ForceDeleted",
+						// 			Key:            ingressSvcKey,
+						// 			IsMapped:       true,
+						// 			IsStoreUpdated: true, //Make it as store updated so it will be just sent as an event
+						// 			MappedResource: copyOfMappedResource,
+						// 			CommonLabel:    copyOfMappedResource.CommonLabel,
+						// 		}
 
-					// 		mapResults = append(mapResults, deleteResource)
-					// 	}
+						// 		mapResults = append(mapResults, deleteResource)
+						// 	}
 
-					// 	result := MapResult{
-					// 		Action:         "Updated",
-					// 		Key:            ingressSvcKey,
-					// 		IsMapped:       true,
-					// 		MappedResource: mappedResource,
-					// 	}
+						// 	result := MapResult{
+						// 		Action:         "Updated",
+						// 		Key:            ingressSvcKey,
+						// 		IsMapped:       true,
+						// 		MappedResource: mappedResource,
+						// 	}
 
-					// 	mapResults = append(mapResults, result)
+						// 	mapResults = append(mapResults, result)
+						// }
+						result := MapResult{
+							Action:         "Updated",
+							Key:            ingressSvcKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}
+
+						mapResults = append(mapResults, result)
+						return mapResults, nil
+					}
+					// //Ingress is not available in newly mapped resource
+					// //Update CL with service name
+					// var serviceNames []string
+					// for _, newMappedService := range mappedResource.Kube.Services {
+					// 	serviceNames = append(serviceNames, newMappedService.Name)
 					// }
-					result := MapResult{
-						Action:         "Updated",
-						Key:            ingressSvcKey,
-						IsMapped:       true,
-						MappedResource: mappedResource,
+
+					// mappedResource.CommonLabel = strings.Join(serviceNames, ", ")
+
+					//It has just Ingress, but more than one.
+					if len(mappedResource.Kube.Ingresses) > 1 {
+						mappedResource.Kube.Ingresses = nil
+						mappedResource.Kube.Ingresses = newIngressSet
+
+						result := MapResult{
+							Action:      "Updated",
+							Key:         ingressSvcKey,
+							CommonLabel: mappedResource.CommonLabel,
+							IsMapped:    true,
+						}
+
+						mapResults = append(mapResults, result)
+
+						return mapResults, nil
 					}
 
-					mapResults = append(mapResults, result)
-					return mapResults, nil
-				}
-				// //Ingress is not available in newly mapped resource
-				// //Update CL with service name
-				// var serviceNames []string
-				// for _, newMappedService := range mappedResource.Kube.Services {
-				// 	serviceNames = append(serviceNames, newMappedService.Name)
-				// }
-
-				// mappedResource.CommonLabel = strings.Join(serviceNames, ", ")
-
-				//It has just Ingress, but more than one.
-				if len(mappedResource.Kube.Ingresses) > 1 {
+					//If it has only one ingress. newIngressSet will be nil
 					mappedResource.Kube.Ingresses = nil
 					mappedResource.Kube.Ingresses = newIngressSet
 
 					result := MapResult{
-						Action:      "Updated",
+						Action:      "Deleted",
 						Key:         ingressSvcKey,
 						CommonLabel: mappedResource.CommonLabel,
 						IsMapped:    true,
@@ -335,24 +311,8 @@ func deleteIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 					mapResults = append(mapResults, result)
 
 					return mapResults, nil
+
 				}
-
-				//If it has only one ingress. newIngressSet will be nil
-				mappedResource.Kube.Ingresses = nil
-				mappedResource.Kube.Ingresses = newIngressSet
-
-				result := MapResult{
-					Action:      "Deleted",
-					Key:         ingressSvcKey,
-					CommonLabel: mappedResource.CommonLabel,
-					IsMapped:    true,
-				}
-
-				mapResults = append(mapResults, result)
-
-				return mapResults, nil
-
-				// }
 			}
 		}
 	}
@@ -2152,10 +2112,7 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 			for _, ingressKey := range ingressKeys {
 				newIngressSet = nil
 
-				//ingressKey := fmt.Sprintf("%s/service/%s", ingress.Namespace, serviceName[0])
-
 				mappedResource, err := getObjectFromStore(ingressKey, store)
-				// copyOfMappedResource := copyMappedResource(mappedResource)
 				if err != nil {
 					//Override error to avoid return.
 					//Set it as not mapped so ingress will get created as individual resource.
