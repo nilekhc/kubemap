@@ -1783,7 +1783,7 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 		keys := store.ListKeys()
 		for _, key := range keys {
 			//Get all resources of types  'deployment' with same name
-			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" {
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" && obj.Name == strings.Split(key, "/")[2] {
 				deploymentKeys = append(deploymentKeys, key)
 			}
 		}
