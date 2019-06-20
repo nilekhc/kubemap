@@ -1265,55 +1265,6 @@ func mapPod(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	return MapResult{}, fmt.Errorf("Only Events of type ADDED, UPDATED and DELETEd are supported. Event type '%s' is not supported", obj.EventType)
 }
 
-// //Ingress Matching
-// func ingressMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
-// 	// var ingressKeys []string
-
-// 	// switch obj.RawObj.(type) {
-// 	// case *ext_v1beta1.Ingress:
-// 	// case *core_v1.Service:
-// 	// 	//Find any individual ingress matching this service
-// 	// 	var service core_v1.Service
-
-// 	// 	//get ingress store
-// 	// 	keys := store.ListKeys()
-// 	// 	for _, key := range keys {
-// 	// 		//If pod has to map with deployment then it must be created via deployment => RS => pod (Pod name derived from deployment)
-// 	// 		if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "ingress" {
-// 	// 			ingressKeys = append(ingressKeys, key)
-// 	// 		}
-// 	// 	}
-
-// 	// 	if obj.RawObj != nil {
-// 	// 		service = *obj.RawObj.(*core_v1.Service).DeepCopy()
-// 	// 	}
-
-// 	// 	for _, ingressKey := range ingressKeys {
-// 	// 		mappedResource, err := getObjectFromStore(ingressKey, store)
-// 	// 		if err != nil {
-// 	// 			return MapResult{}, err
-// 	// 		}
-
-// 	// 		//See if ingress is matching to any Service
-// 	// 		if len(mappedResource.Kube.Ingresses) > 0 {
-// 	// 			for _, mappedIngress := range mappedResource.Kube.Ingresses {
-// 	// 				for _, ingressRule := range mappedIngress.Spec.Rules {
-// 	// 					if ingressRule.IngressRuleValue.HTTP != nil {
-// 	// 						for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
-// 	// 							if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
-// 	// 								if ingressRuleValueHTTPPath.Backend.ServiceName == service.Name {
-// 	// 									//Add this ingress to service
-// 	// 								}
-// 	// 							}
-// 	// 						}
-// 	// 					}
-// 	// 				}
-// 	// 			}
-// 	// 		}
-// 	// 	}
-// 	// }
-// }
-
 //Pod Matching
 func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var podKeys []string
@@ -1329,7 +1280,7 @@ func podMatching(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		keys := store.ListKeys()
 		for _, key := range keys {
 			//If pod has to map with deployment then it must be created via deployment => RS => pod (Pod name derived from deployment)
-			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "service" {
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "pod" {
 				podKeys = append(podKeys, key)
 			}
 		}
@@ -1848,7 +1799,7 @@ func deploymentMatching(obj ResourceEvent, store cache.Store) (MapResult, error)
 		keys := store.ListKeys()
 		for _, key := range keys {
 			//Get all resources of types  'deployment' with same name
-			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" && obj.Name == strings.Split(key, "/")[2] {
+			if strings.Split(key, "/")[0] == obj.Namespace && strings.Split(key, "/")[1] == "deployment" {
 				deploymentKeys = append(deploymentKeys, key)
 			}
 		}
@@ -2223,30 +2174,29 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 		if obj.Event != nil {
 			service = *obj.Event.(*core_v1.Service).DeepCopy()
 		}
-		// if obj.UpdatedRawObj != nil {
-		// 	updatedService = *obj.UpdatedRawObj.(*core_v1.Service).DeepCopy()
-		// }
 
-		for _, serviceKey := range serviceKeys {
-			mappedResource, err := getObjectFromStore(serviceKey, store)
-			if err != nil {
-				return []MapResult{}, err
-			}
-
-			//Check if we have to update service
-			var newServiceSet []core_v1.Service
-			isUpdated := false
-			if len(mappedResource.Kube.Services) > 0 {
-				for _, mappedService := range mappedResource.Kube.Services {
-					if mappedService.Name != service.Name {
-						newServiceSet = append(newServiceSet, mappedService)
-					} else {
-						newServiceSet = append(newServiceSet, service)
-						isUpdated = true
-					}
+		switch obj.EventType {
+		case "UPDATED":
+			for _, serviceKey := range serviceKeys {
+				mappedResource, err := getObjectFromStore(serviceKey, store)
+				if err != nil {
+					return []MapResult{}, err
 				}
 
-				if isUpdated {
+				//Check if we have to update service
+				var newServiceSet []core_v1.Service
+				//isUpdated := false
+				if len(mappedResource.Kube.Services) > 0 {
+					for _, mappedService := range mappedResource.Kube.Services {
+						if mappedService.Name != service.Name {
+							newServiceSet = append(newServiceSet, mappedService)
+						} else {
+							newServiceSet = append(newServiceSet, service)
+							//isUpdated = true
+						}
+					}
+
+					//if isUpdated {
 					mappedResource.Kube.Services = nil
 					mappedResource.Kube.Services = newServiceSet
 
@@ -2258,30 +2208,31 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 							MappedResource: mappedResource,
 						},
 					}, nil
+					//}
 				}
-			}
 
-			//Check if its actually an ingress created as type 'service'
-			if len(mappedResource.Kube.Ingresses) > 0 {
-				for _, mappedIngress := range mappedResource.Kube.Ingresses {
-					for _, ingressRule := range mappedIngress.Spec.Rules {
-						if ingressRule.IngressRuleValue.HTTP != nil {
-							for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
-								if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
-									if ingressRuleValueHTTPPath.Backend.ServiceName == service.Name {
-										//Add this service to ingress created as type 'service'
-										//Common Label is already set to ingress name.
-										mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
-										mappedResource.CommonLabel = service.Name
+				//Check if its actually an ingress created as type 'service'
+				if len(mappedResource.Kube.Ingresses) > 0 {
+					for _, mappedIngress := range mappedResource.Kube.Ingresses {
+						for _, ingressRule := range mappedIngress.Spec.Rules {
+							if ingressRule.IngressRuleValue.HTTP != nil {
+								for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
+									if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
+										if ingressRuleValueHTTPPath.Backend.ServiceName == service.Name {
+											//Add this service to ingress created as type 'service'
+											//Common Label is already set to ingress name.
+											mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
+											mappedResource.CommonLabel = service.Name
 
-										return []MapResult{
-											MapResult{
-												Action:         "Updated",
-												Key:            serviceKey,
-												IsMapped:       true,
-												MappedResource: mappedResource,
-											},
-										}, nil
+											return []MapResult{
+												MapResult{
+													Action:         "Updated",
+													Key:            serviceKey,
+													IsMapped:       true,
+													MappedResource: mappedResource,
+												},
+											}, nil
+										}
 									}
 								}
 							}
@@ -2308,14 +2259,15 @@ func serviceMatching(obj ResourceEvent, store cache.Store, serviceName ...string
 			deployment = *obj.Event.(*apps_v1beta2.Deployment).DeepCopy()
 		}
 
+		var newDeploymentSet []apps_v1beta2.Deployment
 		for _, serviceKey := range serviceKeys {
+			newDeploymentSet = nil
 			mappedResource, err := getObjectFromStore(serviceKey, store)
 			if err != nil {
 				return []MapResult{}, err
 			}
 
 			//See if deployment match to any of service
-			var newDeploymentSet []apps_v1beta2.Deployment
 			if len(mappedResource.Kube.Services) > 0 {
 				for _, service := range mappedResource.Kube.Services {
 					if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, service.Spec.Selector) {
