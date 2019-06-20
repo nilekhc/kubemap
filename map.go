@@ -86,44 +86,44 @@ func mapIngress(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		ingress = *obj.Event.(*ext_v1beta1.Ingress).DeepCopy()
 	}
 
-	if obj.EventType == "ADDED" {
+	if obj.EventType == "ADDED" || obj.EventType == "UPDATED" {
 		return addIngress(ingress, obj, store)
 	}
 
-	if obj.EventType == "UPDATED" {
-		var mapResult []MapResult
-		delResults, delErr := deleteIngress(obj, store)
-		if delErr != nil {
-			return mapResult, delErr
-		}
+	// if obj.EventType == "UPDATED" {
+	// 	var mapResult []MapResult
+	// 	delResults, delErr := deleteIngress(obj, store)
+	// 	if delErr != nil {
+	// 		return mapResult, delErr
+	// 	}
 
-		storeErr := updateStore(delResults, store)
-		if storeErr != nil {
-			return []MapResult{}, storeErr
-		}
+	// 	storeErr := updateStore(delResults, store)
+	// 	if storeErr != nil {
+	// 		return []MapResult{}, storeErr
+	// 	}
 
-		for _, delResult := range delResults {
-			delResult.IsStoreUpdated = true
-			mapResult = append(mapResult, delResult)
-		}
+	// 	for _, delResult := range delResults {
+	// 		delResult.IsStoreUpdated = true
+	// 		mapResult = append(mapResult, delResult)
+	// 	}
 
-		addResults, addErr := addIngress(ingress, obj, store)
-		if addErr != nil {
-			return mapResult, addErr
-		}
+	// 	addResults, addErr := addIngress(ingress, obj, store)
+	// 	if addErr != nil {
+	// 		return mapResult, addErr
+	// 	}
 
-		storeErr = updateStore(addResults, store)
-		if storeErr != nil {
-			return []MapResult{}, storeErr
-		}
+	// 	storeErr = updateStore(addResults, store)
+	// 	if storeErr != nil {
+	// 		return []MapResult{}, storeErr
+	// 	}
 
-		for _, addResult := range addResults {
-			addResult.IsStoreUpdated = true
-			mapResult = append(mapResult, addResult)
-		}
+	// 	for _, addResult := range addResults {
+	// 		addResult.IsStoreUpdated = true
+	// 		mapResult = append(mapResult, addResult)
+	// 	}
 
-		return mapResult, nil
-	}
+	// 	return mapResult, nil
+	// }
 
 	if obj.EventType == "DELETED" {
 		return deleteIngress(obj, store)
