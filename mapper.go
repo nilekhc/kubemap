@@ -153,6 +153,86 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}, nil
 			}
 		}
+
+		//Try matching with Replica set
+		for _, rsID := range metaIdentifier.ReplicaSetsIdentifier {
+			serviceMatchedLabels := make(map[string]string)
+			for rsKey, rsValue := range rsID.MatchLabels {
+				if val, ok := service.Spec.Selector[rsKey]; ok {
+					if val == rsValue {
+						serviceMatchedLabels[rsKey] = rsValue
+					}
+				}
+			}
+			if reflect.DeepEqual(service.Spec.Selector, serviceMatchedLabels) {
+				//Service and deployment matches. Add service to this mapped resource
+				mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+				for i, mappedService := range mappedResource.Kube.Services {
+					if mappedService.Name == service.Name {
+						mappedResource.Kube.Services[i] = service
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+
+				mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
+				if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
+					mappedResource.CommonLabel = service.Name
+				}
+				return MapResult{
+					Action:         "Updated",
+					Key:            namespaceKey,
+					IsMapped:       true,
+					MappedResource: mappedResource,
+				}, nil
+			}
+		}
+
+		//Try matching with Pods
+		for _, podID := range metaIdentifier.PodsIdentifier {
+			serviceMatchedLabels := make(map[string]string)
+			for podKey, podValue := range podID.MatchLabels {
+				if val, ok := service.Spec.Selector[podKey]; ok {
+					if val == podValue {
+						serviceMatchedLabels[podKey] = podValue
+					}
+				}
+			}
+			if reflect.DeepEqual(service.Spec.Selector, serviceMatchedLabels) {
+				//Service and deployment matches. Add service to this mapped resource
+				mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+				for i, mappedService := range mappedResource.Kube.Services {
+					if mappedService.Name == service.Name {
+						mappedResource.Kube.Services[i] = service
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+
+				mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
+				if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
+					mappedResource.CommonLabel = service.Name
+				}
+				return MapResult{
+					Action:         "Updated",
+					Key:            namespaceKey,
+					IsMapped:       true,
+					MappedResource: mappedResource,
+				}, nil
+			}
+		}
 	}
 
 	//Didn't find any match. Create new resource
@@ -239,6 +319,81 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						}, nil
 					}
 				}
+			}
+		}
+
+		//Try matching with Replica set
+		for _, rsID := range metaIdentifier.ReplicaSetsIdentifier {
+			for _, ownerReference := range rsID.OwnerReferences {
+				if ownerReference == deployment.Name {
+					//Deployment and RS matches. Add deployment to this mapped resource
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					for i, mappedDeployment := range mappedResource.Kube.Deployments {
+						if mappedDeployment.Name == deployment.Name {
+							mappedResource.Kube.Deployments[i] = deployment
+
+							return MapResult{
+								Action:         "Updated",
+								Key:            namespaceKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+							}, nil
+						}
+					}
+
+					mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
+					if len(mappedResource.Kube.Deployments) < 2 { //Set Common Label to deployment name.
+						mappedResource.CommonLabel = deployment.Name
+					}
+					return MapResult{
+						Action:         "Updated",
+						Key:            namespaceKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+				}
+			}
+		}
+
+		//Try matching with Pod
+		for _, podID := range metaIdentifier.PodsIdentifier {
+			podMatchedLabels := make(map[string]string)
+			for podKey, podValue := range podID.MatchLabels {
+				if val, ok := deployment.Spec.Selector.MatchLabels[podKey]; ok {
+					if val == podValue {
+						podMatchedLabels[podKey] = podValue
+					}
+				}
+			}
+
+			if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, podMatchedLabels) {
+				//Deployment and RS matches. Add deployment to this mapped resource
+				mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+				for i, mappedDeployment := range mappedResource.Kube.Deployments {
+					if mappedDeployment.Name == deployment.Name {
+						mappedResource.Kube.Deployments[i] = deployment
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+
+				mappedResource.Kube.Deployments = append(mappedResource.Kube.Deployments, deployment)
+				if len(mappedResource.Kube.Deployments) < 2 { //Set Common Label to deployment name.
+					mappedResource.CommonLabel = deployment.Name
+				}
+				return MapResult{
+					Action:         "Updated",
+					Key:            namespaceKey,
+					IsMapped:       true,
+					MappedResource: mappedResource,
+				}, nil
 			}
 		}
 	}
@@ -351,6 +506,64 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					IsMapped:       true,
 					MappedResource: mappedResource,
 				}, nil
+			}
+		}
+
+		//Try matching with RS
+		for _, rsID := range metaIdentifier.ReplicaSetsIdentifier {
+			podMatchedLabels := make(map[string]string)
+			for rsKey, rsValue := range rsID.MatchLabels {
+				if val, ok := pod.Labels[rsKey]; ok {
+					if val == rsValue {
+						podMatchedLabels[rsKey] = rsValue
+					}
+				}
+			}
+			if reflect.DeepEqual(podMatchedLabels, rsID.MatchLabels) {
+				//Service and deployment matches. Add service to this mapped resource
+				mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+				for i, mappedPod := range mappedResource.Kube.Pods {
+					if mappedPod.Name == pod.Name {
+						mappedResource.Kube.Pods[i] = pod
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+
+				mappedResource.Kube.Pods = append(mappedResource.Kube.Pods, pod)
+				return MapResult{
+					Action:         "Updated",
+					Key:            namespaceKey,
+					IsMapped:       true,
+					MappedResource: mappedResource,
+				}, nil
+			}
+
+			//Try matching with Pod
+			for _, podID := range metaIdentifier.PodsIdentifier {
+				if reflect.DeepEqual(pod.Labels, podID.MatchLabels) {
+					//Service and deployment matches. Add service to this mapped resource
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					for i, mappedPod := range mappedResource.Kube.Pods {
+						if mappedPod.Name == pod.Name {
+							mappedResource.Kube.Pods[i] = pod
+
+							return MapResult{
+								Action:         "Updated",
+								Key:            namespaceKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+							}, nil
+						}
+					}
+				}
 			}
 		}
 	}
