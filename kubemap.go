@@ -29,9 +29,19 @@ func NewStoreMapper(store cache.Store) *Mapper {
 	}
 }
 
+// //StoreMap gets a resources and maps it with exiting resources in store
+// func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
+// 	mapResults, err := kubemap(obj, m.store)
+// 	if err != nil {
+// 		return []MapResult{}, err
+// 	}
+
+// 	return mapResults, nil
+// }
+
 //StoreMap gets a resources and maps it with exiting resources in store
 func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
-	mapResults, err := kubemap(obj, m.store)
+	mapResults, err := kubemapper(obj, m.store)
 	if err != nil {
 		return []MapResult{}, err
 	}

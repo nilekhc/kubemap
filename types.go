@@ -70,3 +70,17 @@ type MapResult struct {
 	IsStoreUpdated bool
 	MappedResource MappedResource
 }
+
+//MetaIdentifier ...
+type MetaIdentifier struct {
+	ServicesIdentifier    []map[string]string `json:"servicesIdentifier,omitempty"`
+	DeploymentsIdentifier []map[string]string `json:"deploymentsIdentifier,omitempty"`
+	ReplicaSetsIdentifier []ChildSet          `json:"replicaSetsIdentifier,omitempty"`
+	PodsIdentifier        []ChildSet          `json:"podsIdentifier,omitempty"`
+}
+
+//ChildSet ...
+type ChildSet struct {
+	OwnerReferences []string          `json:"ownerReferences,omitempty"`
+	MatchLabels     map[string]string `json:"matchLabels,omitempty"`
+}
