@@ -141,6 +141,9 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 
 				mappedResource.Kube.Services = append(mappedResource.Kube.Services, service)
+				if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
+					mappedResource.CommonLabel = service.Name
+				}
 				return MapResult{
 					Action:         "Updated",
 					Key:            namespaceKey,
