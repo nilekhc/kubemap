@@ -608,10 +608,12 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		//Try matching with Service
 		for _, svcID := range metaIdentifier.ServicesIdentifier {
 			rsMatchedLabels := make(map[string]string)
-			for svcKey, svcValue := range svcID {
-				if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
-					if val == svcValue {
-						rsMatchedLabels[svcKey] = svcValue
+			if svcID != nil {
+				for svcKey, svcValue := range svcID {
+					if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
+						if val == svcValue {
+							rsMatchedLabels[svcKey] = svcValue
+						}
 					}
 				}
 			}
