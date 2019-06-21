@@ -69,9 +69,9 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			return []MapResult{}, err
 		}
 
-		// 	return []MapResult{
-		// 		mappedPod,
-		// 	}, nil
+		return []MapResult{
+			mappedPod,
+		}, nil
 	}
 
 	return []MapResult{}, fmt.Errorf("Resource type '%s' is not supported for mapping", obj.ResourceType)
