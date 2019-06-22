@@ -31,12 +31,12 @@ func kubemapper(obj interface{}, store cache.Store) ([]MapResult, error) {
 func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	switch obj.ResourceType {
 	case "ingress":
-		mappedIngress, err := mapIngressObj(obj, store)
-		if err != nil {
-			return []MapResult{}, err
-		}
+		// mappedIngress, err := mapIngressObj(obj, store)
+		// if err != nil {
+		// 	return []MapResult{}, err
+		// }
 
-		return mappedIngress, nil
+		// return mappedIngress, nil
 	case "service":
 		mappedService, err := mapServiceObj(obj, store)
 		if err != nil {
@@ -608,7 +608,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		//Try matching with Service
 		for _, svcID := range metaIdentifier.ServicesIdentifier {
 			rsMatchedLabels := make(map[string]string)
-			if svcID != nil {
+			if svcID != nil && replicaSet.Spec.Selector.MatchLabels != nil {
 				fmt.Printf("\n%v\n", svcID)
 				for svcKey, svcValue := range svcID {
 					if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
