@@ -73,21 +73,22 @@ type MapResult struct {
 
 //MetaIdentifier ...
 type MetaIdentifier struct {
-	IngressBackendServicesIdentifier []string            `json:"ingressBackendServicesIdentifier,omitempty"`
-	ServicesIdentifier               MetaSet             `json:"servicesIdentifier,omitempty"`
-	DeploymentsIdentifier            []map[string]string `json:"deploymentsIdentifier,omitempty"`
-	ReplicaSetsIdentifier            []ChildSet          `json:"replicaSetsIdentifier,omitempty"`
-	PodsIdentifier                   []ChildSet          `json:"podsIdentifier,omitempty"`
+	IngressBackendServicesIdentifier []string   `json:"ingressBackendServicesIdentifier,omitempty"`
+	ServicesIdentifier               MetaSet    `json:"servicesIdentifier,omitempty"`
+	DeploymentsIdentifier            MetaSet    `json:"deploymentsIdentifier,omitempty"`
+	ReplicaSetsIdentifier            []ChildSet `json:"replicaSetsIdentifier,omitempty"`
+	PodsIdentifier                   []ChildSet `json:"podsIdentifier,omitempty"`
 }
 
 //MetaSet ...
 type MetaSet struct {
-	Name        string              `json:"name,omitempty"`
+	Names       []string            `json:"names,omitempty"`
 	MatchLabels []map[string]string `json:"matchLabels,omitempty"`
 }
 
 //ChildSet ...
 type ChildSet struct {
+	Name            string            `json:"name,omitempty"`
 	OwnerReferences []string          `json:"ownerReferences,omitempty"`
 	MatchLabels     map[string]string `json:"matchLabels,omitempty"`
 }

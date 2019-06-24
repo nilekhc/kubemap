@@ -117,15 +117,30 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 			for _, ingressBackendService := range ingressBackendServices {
 				//Try matching with Service
-				if metaIdentifier.ServicesIdentifier.Name == ingressBackendService {
-					//Get object
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+				for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
+					if serviceName == ingressBackendService {
+						//Get object
+						mappedResource, _ := getObjectFromStore(namespaceKey, store)
 
-					isUpdated := false
-					for i, mappedIngress := range mappedResource.Kube.Ingresses {
-						if mappedIngress.Name == ingress.Name {
-							mappedResource.Kube.Ingresses[i] = ingress
-							isUpdated = true
+						isUpdated := false
+						for i, mappedIngress := range mappedResource.Kube.Ingresses {
+							if mappedIngress.Name == ingress.Name {
+								mappedResource.Kube.Ingresses[i] = ingress
+								isUpdated = true
+
+								mapResults = append(mapResults,
+									MapResult{
+										Action:         "Updated",
+										Key:            namespaceKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									},
+								)
+							}
+						}
+
+						if !isUpdated {
+							mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
 
 							mapResults = append(mapResults,
 								MapResult{
@@ -136,21 +151,8 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 								},
 							)
 						}
+						isMatched = true
 					}
-
-					if !isUpdated {
-						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
-
-						mapResults = append(mapResults,
-							MapResult{
-								Action:         "Updated",
-								Key:            namespaceKey,
-								IsMapped:       true,
-								MappedResource: mappedResource,
-							},
-						)
-					}
-					isMatched = true
 				}
 			}
 		}
@@ -182,7 +184,7 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 		metaIdentifier := MetaIdentifier{}
 
 		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
-		if metaIdentifier.DeploymentsIdentifier == nil && metaIdentifier.PodsIdentifier == nil && metaIdentifier.ReplicaSetsIdentifier == nil && metaIdentifier.ServicesIdentifier.MatchLabels == nil && metaIdentifier.IngressBackendServicesIdentifier != nil {
+		if metaIdentifier.DeploymentsIdentifier.MatchLabels == nil && metaIdentifier.PodsIdentifier == nil && metaIdentifier.ReplicaSetsIdentifier == nil && metaIdentifier.ServicesIdentifier.MatchLabels == nil && metaIdentifier.IngressBackendServicesIdentifier != nil {
 			//Its an object with just ingress
 			for _, ingressBackendService := range metaIdentifier.IngressBackendServicesIdentifier {
 				if ingressBackendService == serviceName {
@@ -248,7 +250,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			}
 
 			//Try matching with Deployment
-			for _, depID := range metaIdentifier.DeploymentsIdentifier {
+			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				if reflect.DeepEqual(service.Spec.Selector, depID) {
 					//Service and deployment matches. Add service to this mapped resource
 					mappedResource, _ := getObjectFromStore(namespaceKey, store)
@@ -458,7 +460,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			}
 
 			//Try matching with Deployment
-			for _, depID := range metaIdentifier.DeploymentsIdentifier {
+			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, depID) {
 					//Service and deployment matches. Add service to this mapped resource
 					mappedResource, _ := getObjectFromStore(namespaceKey, store)
@@ -630,7 +632,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			}
 
 			//Try matching with Deployment
-			for _, depID := range metaIdentifier.DeploymentsIdentifier {
+			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				podMatchedLabels := make(map[string]string)
 				for depKey, depValue := range depID {
 					if val, ok := pod.Labels[depKey]; ok {
@@ -738,6 +740,11 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			MappedResource: newMappedService,
 		}, nil
 	}
+
+	//Handle Delete
+	if obj.Event == "DELETED" {
+
+	}
 	return MapResult{}, nil
 }
 
@@ -805,7 +812,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			}
 
 			//Try matching with Deployment
-			for _, depID := range metaIdentifier.DeploymentsIdentifier {
+			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				rsMatchedLabels := make(map[string]string)
 				for depKey, depValue := range depID {
 					if val, ok := replicaSet.Spec.Selector.MatchLabels[depKey]; ok {
