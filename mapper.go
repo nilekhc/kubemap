@@ -576,7 +576,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var pod core_v1.Pod
 	var namespaceKeys []string
 
-	if obj.Event != nil {
+	if obj.Event != nil && obj.Event != "DELETED" {
 		pod = *obj.Event.(*core_v1.Pod).DeepCopy()
 
 		keys := store.ListKeys()
@@ -778,6 +778,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 						return MapResult{
 							Action:         "Updated",
+							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
 						}, nil
@@ -788,16 +789,14 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 						return MapResult{
 							Action:         "Updated",
+							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
 						}, nil
 					} else {
-						//It has one or more pods
-						mappedResource.Kube.Pods = nil
-						mappedResource.Kube.Pods = newPodSet
-
 						return MapResult{
 							Action:         "Deleted",
+							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
 						}, nil
