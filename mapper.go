@@ -743,7 +743,68 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 	//Handle Delete
 	if obj.Event == "DELETED" {
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
 
+		var newPodSet []core_v1.Pod
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+			for _, podChileSet := range metaIdentifier.PodsIdentifier {
+				if podChileSet.Name == obj.Name {
+					//Pod is being deleted.
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					newPodSet = nil
+					for _, mappedPod := range mappedResource.Kube.Pods {
+						if mappedPod.Name != obj.Name {
+							newPodSet = append(newPodSet, mappedPod)
+						}
+					}
+
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
+						//It has another resources.
+						mappedResource.Kube.Pods = nil
+						mappedResource.Kube.Pods = newPodSet
+
+						return MapResult{
+							Action:         "Updated",
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					} else if len(mappedResource.Kube.Pods) > 1 {
+						//It has one or more pods
+						mappedResource.Kube.Pods = nil
+						mappedResource.Kube.Pods = newPodSet
+
+						return MapResult{
+							Action:         "Updated",
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					} else {
+						//It has one or more pods
+						mappedResource.Kube.Pods = nil
+						mappedResource.Kube.Pods = newPodSet
+
+						return MapResult{
+							Action:         "Deleted",
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+				}
+			}
+		}
 	}
 	return MapResult{}, nil
 }
