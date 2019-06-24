@@ -188,7 +188,9 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 				if ingressBackendService == serviceName {
 					//This ingress belongs to this service. Add it
 					ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
-					mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingressMappedResource.Kube.Ingresses...)
+					for _, loneIngress := range ingressMappedResource.Kube.Ingresses {
+						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, loneIngress)
+					}
 					oldIngressDeleteKeys = append(oldIngressDeleteKeys, namespaceKey)
 				}
 			}
