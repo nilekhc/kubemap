@@ -175,6 +175,29 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	return []MapResult{}, nil
 }
 
+func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKeys []string, store cache.Store) (MappedResource, []string) {
+	var oldIngressDeleteKeys []string
+	for _, namespaceKey := range namespaceKeys {
+		metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+		metaIdentifier := MetaIdentifier{}
+
+		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+		if metaIdentifier.DeploymentsIdentifier == nil && metaIdentifier.PodsIdentifier == nil && metaIdentifier.ReplicaSetsIdentifier == nil && metaIdentifier.ServicesIdentifier.MatchLabels == nil && metaIdentifier.IngressBackendServicesIdentifier != nil {
+			//Its an object with just ingress
+			for _, ingressBackendService := range metaIdentifier.IngressBackendServicesIdentifier {
+				if ingressBackendService == serviceName {
+					//This ingress belongs to this service. Add it
+					ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingressMappedResource.Kube.Ingresses...)
+					oldIngressDeleteKeys = append(oldIngressDeleteKeys, namespaceKey)
+				}
+			}
+		}
+	}
+
+	return mappedResource, oldIngressDeleteKeys
+}
+
 func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var service core_v1.Service
 	var namespaceKeys []string
@@ -207,11 +230,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
+							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							deleteKeys = append(deleteKeys, namespaceKey)
+							deleteKeys = removeDuplicateStrings(deleteKeys)
+
 							return MapResult{
 								Action:         "Updated",
-								Key:            namespaceKey,
+								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
-								MappedResource: mappedResource,
+								MappedResource: newMappedResource,
 							}, nil
 						}
 					}
@@ -228,11 +255,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
+							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							deleteKeys = append(deleteKeys, namespaceKey)
+							deleteKeys = removeDuplicateStrings(deleteKeys)
+
 							return MapResult{
 								Action:         "Updated",
-								Key:            namespaceKey,
+								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
-								MappedResource: mappedResource,
+								MappedResource: newMappedResource,
 							}, nil
 						}
 					}
@@ -241,11 +272,16 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
 						mappedResource.CommonLabel = service.Name
 					}
+
+					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					deleteKeys = append(deleteKeys, namespaceKey)
+					deleteKeys = removeDuplicateStrings(deleteKeys)
+
 					return MapResult{
 						Action:         "Updated",
-						Key:            namespaceKey,
+						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
-						MappedResource: mappedResource,
+						MappedResource: newMappedResource,
 					}, nil
 				}
 			}
@@ -268,11 +304,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
+							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							deleteKeys = append(deleteKeys, namespaceKey)
+							deleteKeys = removeDuplicateStrings(deleteKeys)
+
 							return MapResult{
 								Action:         "Updated",
-								Key:            namespaceKey,
+								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
-								MappedResource: mappedResource,
+								MappedResource: newMappedResource,
 							}, nil
 						}
 					}
@@ -281,11 +321,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
 						mappedResource.CommonLabel = service.Name
 					}
+					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					deleteKeys = append(deleteKeys, namespaceKey)
+					deleteKeys = removeDuplicateStrings(deleteKeys)
+
 					return MapResult{
 						Action:         "Updated",
-						Key:            namespaceKey,
+						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
-						MappedResource: mappedResource,
+						MappedResource: newMappedResource,
 					}, nil
 				}
 			}
@@ -308,11 +352,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
+							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							deleteKeys = append(deleteKeys, namespaceKey)
+							deleteKeys = removeDuplicateStrings(deleteKeys)
+
 							return MapResult{
 								Action:         "Updated",
-								Key:            namespaceKey,
+								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
-								MappedResource: mappedResource,
+								MappedResource: newMappedResource,
 							}, nil
 						}
 					}
@@ -321,11 +369,16 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
 						mappedResource.CommonLabel = service.Name
 					}
+					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					deleteKeys = append(deleteKeys, namespaceKey)
+					deleteKeys = removeDuplicateStrings(deleteKeys)
+
 					return MapResult{
-						Action:         "Updated",
-						Key:            namespaceKey,
+						Action: "Updated",
+						// Key:            namespaceKey,
+						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
-						MappedResource: mappedResource,
+						MappedResource: newMappedResource,
 					}, nil
 				}
 			}
@@ -338,10 +391,14 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		newMappedService.Namespace = service.Namespace
 		newMappedService.Kube.Services = append(newMappedService.Kube.Services, service)
 
+		newMappedResourceWithIngress, deleteKeys := ingressCheck(newMappedService, service.Name, namespaceKeys, store)
+		deleteKeys = removeDuplicateStrings(deleteKeys)
+
 		return MapResult{
 			Action:         "Added",
 			IsMapped:       true,
-			MappedResource: newMappedService,
+			DeleteKeys:     deleteKeys,
+			MappedResource: newMappedResourceWithIngress,
 		}, nil
 	}
 	return MapResult{}, nil
