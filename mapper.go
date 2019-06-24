@@ -36,7 +36,9 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		// 	return []MapResult{}, err
 		// }
 
-		// return mappedIngress, nil
+		// return []MapResult{
+		// 	mappedIngress,
+		// }, nil
 	case "service":
 		mappedService, err := mapServiceObj(obj, store)
 		if err != nil {
@@ -78,6 +80,46 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	return []MapResult{}, fmt.Errorf("Resource type '%s' is not supported for mapping", obj.ResourceType)
 }
 
+func mapIngressObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+	var ingress ext_v1beta1.Ingress
+	var namespaceKeys, ingressBackendServices []string
+
+	if obj.Event != nil {
+		ingress = *obj.Event.(*ext_v1beta1.Ingress).DeepCopy()
+
+		//Get all services from ingress rules
+		for _, ingressRule := range ingress.Spec.Rules {
+			if ingressRule.IngressRuleValue.HTTP != nil {
+				for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
+					if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
+						ingressBackendServices = append(ingressBackendServices, ingressRuleValueHTTPPath.Backend.ServiceName)
+					}
+				}
+			}
+		}
+
+		ingressBackendServices = removeDuplicateStrings(ingressBackendServices)
+
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
+
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+		}
+	}
+
+	return MapResult{}, nil
+}
+
 func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var service core_v1.Service
 	var namespaceKeys []string
@@ -101,7 +143,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
 			//Try matching with Service
-			for _, svcID := range metaIdentifier.ServicesIdentifier {
+			for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 				if reflect.DeepEqual(service.Spec.Selector, svcID) {
 					//Service and deployment matches. Add service to this mapped resource
 					mappedResource, _ := getObjectFromStore(namespaceKey, store)
@@ -273,7 +315,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
 			//Try matching with Service
-			for _, svcID := range metaIdentifier.ServicesIdentifier {
+			for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 				if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, svcID) {
 					//Service and deployment matches. Add service to this mapped resource
 					mappedResource, _ := getObjectFromStore(namespaceKey, store)
@@ -437,7 +479,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
 			//Try matching with Service
-			for _, svcID := range metaIdentifier.ServicesIdentifier {
+			for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 				podMatchedLabels := make(map[string]string)
 				for svcKey, svcValue := range svcID {
 					if val, ok := pod.Labels[svcKey]; ok {
@@ -608,12 +650,10 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
 			//Try matching with Service
-			fmt.Printf("\nRS - %s\n", replicaSet.Name)
-			if metaIdentifier.ServicesIdentifier != nil {
-				for _, svcID := range metaIdentifier.ServicesIdentifier {
+			if metaIdentifier.ServicesIdentifier.MatchLabels != nil {
+				for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 					rsMatchedLabels := make(map[string]string)
 					if svcID != nil && replicaSet.Spec.Selector.MatchLabels != nil {
-						fmt.Printf("\n%v\n", svcID)
 						for svcKey, svcValue := range svcID {
 							if val, ok := replicaSet.Spec.Selector.MatchLabels[svcKey]; ok {
 								if val == svcValue {

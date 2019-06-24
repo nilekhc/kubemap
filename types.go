@@ -73,10 +73,16 @@ type MapResult struct {
 
 //MetaIdentifier ...
 type MetaIdentifier struct {
-	ServicesIdentifier    []map[string]string `json:"servicesIdentifier,omitempty"`
+	ServicesIdentifier    MetaSet             `json:"servicesIdentifier,omitempty"`
 	DeploymentsIdentifier []map[string]string `json:"deploymentsIdentifier,omitempty"`
 	ReplicaSetsIdentifier []ChildSet          `json:"replicaSetsIdentifier,omitempty"`
 	PodsIdentifier        []ChildSet          `json:"podsIdentifier,omitempty"`
+}
+
+//MetaSet ...
+type MetaSet struct {
+	Name        string              `json:"name,omitempty"`
+	MatchLabels []map[string]string `json:"matchLabels,omitempty"`
 }
 
 //ChildSet ...
