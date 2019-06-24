@@ -31,14 +31,12 @@ func kubemapper(obj interface{}, store cache.Store) ([]MapResult, error) {
 func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	switch obj.ResourceType {
 	case "ingress":
-		// mappedIngress, err := mapIngressObj(obj, store)
-		// if err != nil {
-		// 	return []MapResult{}, err
-		// }
+		mappedIngress, err := mapIngressObj(obj, store)
+		if err != nil {
+			return []MapResult{}, err
+		}
 
-		// return []MapResult{
-		// 	mappedIngress,
-		// }, nil
+		return mappedIngress, nil
 	case "service":
 		mappedService, err := mapServiceObj(obj, store)
 		if err != nil {
@@ -80,9 +78,10 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	return []MapResult{}, fmt.Errorf("Resource type '%s' is not supported for mapping", obj.ResourceType)
 }
 
-func mapIngressObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	var ingress ext_v1beta1.Ingress
 	var namespaceKeys, ingressBackendServices []string
+	var mapResults []MapResult
 
 	if obj.Event != nil {
 		ingress = *obj.Event.(*ext_v1beta1.Ingress).DeepCopy()
@@ -109,15 +108,71 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			}
 		}
 
+		isMatched := false
 		for _, namespaceKey := range namespaceKeys {
 			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
-		}
-	}
 
-	return MapResult{}, nil
+			for _, ingressBackendService := range ingressBackendServices {
+				//Try matching with Service
+				if metaIdentifier.ServicesIdentifier.Name == ingressBackendService {
+					//Get object
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					isUpdated := false
+					for i, mappedIngress := range mappedResource.Kube.Ingresses {
+						if mappedIngress.Name == ingress.Name {
+							mappedResource.Kube.Ingresses[i] = ingress
+							isUpdated = true
+
+							mapResults = append(mapResults,
+								MapResult{
+									Action:         "Updated",
+									Key:            namespaceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+								},
+							)
+						}
+					}
+
+					if !isUpdated {
+						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
+
+						mapResults = append(mapResults,
+							MapResult{
+								Action:         "Updated",
+								Key:            namespaceKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+							},
+						)
+					}
+					isMatched = true
+				}
+			}
+		}
+		if !isMatched {
+			//Create new object with ingress
+			newMappedService := MappedResource{}
+			newMappedService.CommonLabel = ingress.Name
+			newMappedService.CurrentType = "service"
+			newMappedService.Namespace = ingress.Namespace
+			newMappedService.Kube.Ingresses = append(newMappedService.Kube.Ingresses, ingress)
+
+			mapResults = append(mapResults,
+				MapResult{
+					Action:         "Added",
+					IsMapped:       true,
+					MappedResource: newMappedService,
+				},
+			)
+		}
+		return mapResults, nil
+	}
+	return []MapResult{}, nil
 }
 
 func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
