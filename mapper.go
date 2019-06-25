@@ -284,6 +284,37 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 				}
 			}
 		}
+
+		//Check for non lone ingress which might part of more than one services and already mapped to one of them.
+		for _, ingressBackendService := range metaIdentifier.IngressIdentifier.IngressBackendServices {
+			if ingressBackendService == serviceName {
+				//This ingress belongs to this service. Add it
+				ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+				for _, mappedIngress := range mappedResource.Kube.Ingresses {
+					for _, mappedIngressResource := range ingressMappedResource.Kube.Ingresses {
+						if mappedIngress.Name != mappedIngressResource.Name {
+							var currentIngressBackendServices []string
+							for _, ingressRule := range mappedIngressResource.Spec.Rules {
+								if ingressRule.IngressRuleValue.HTTP != nil {
+									for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
+										if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
+											currentIngressBackendServices = append(currentIngressBackendServices, ingressRuleValueHTTPPath.Backend.ServiceName)
+										}
+									}
+								}
+							}
+
+							for _, currentIngressBackendService := range currentIngressBackendServices {
+								if currentIngressBackendService == serviceName {
+									mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, mappedIngressResource)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	return mappedResource, oldIngressDeleteKeys
