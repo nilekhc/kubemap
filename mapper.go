@@ -118,6 +118,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			for _, ingressBackendService := range ingressBackendServices {
 				//Try matching with Service
 				for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
+					isMatched = false
 					if serviceName == ingressBackendService {
 						//Get object
 						mappedResource, _ := getObjectFromStore(namespaceKey, store)
