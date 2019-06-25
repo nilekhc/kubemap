@@ -452,6 +452,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Action:         "Deleted",
 						Key:            namespaceKey,
 						IsMapped:       true,
+						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
 					}, nil
 
@@ -670,6 +671,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Action:         "Deleted",
 						Key:            namespaceKey,
 						IsMapped:       true,
+						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
 					}, nil
 
@@ -895,6 +897,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Action:         "Deleted",
 						Key:            namespaceKey,
 						IsMapped:       true,
+						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
 					}, nil
 
@@ -1128,6 +1131,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Action:         "Deleted",
 						Key:            namespaceKey,
 						IsMapped:       true,
+						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
 					}, nil
 
