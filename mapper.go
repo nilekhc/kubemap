@@ -813,24 +813,24 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						MappedResource: mappedResource,
 					}, nil
 				}
+			}
 
-				//Try matching with Pod
-				for _, podID := range metaIdentifier.PodsIdentifier {
-					if reflect.DeepEqual(pod.Labels, podID.MatchLabels) {
-						//Service and deployment matches. Add service to this mapped resource
-						mappedResource, _ := getObjectFromStore(namespaceKey, store)
+			//Try matching with Pod
+			for _, podID := range metaIdentifier.PodsIdentifier {
+				if reflect.DeepEqual(pod.Labels, podID.MatchLabels) {
+					//Service and deployment matches. Add service to this mapped resource
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
 
-						for i, mappedPod := range mappedResource.Kube.Pods {
-							if mappedPod.Name == pod.Name {
-								mappedResource.Kube.Pods[i] = pod
+					for i, mappedPod := range mappedResource.Kube.Pods {
+						if mappedPod.Name == pod.Name {
+							mappedResource.Kube.Pods[i] = pod
 
-								return MapResult{
-									Action:         "Updated",
-									Key:            namespaceKey,
-									IsMapped:       true,
-									MappedResource: mappedResource,
-								}, nil
-							}
+							return MapResult{
+								Action:         "Updated",
+								Key:            namespaceKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+							}, nil
 						}
 					}
 				}
