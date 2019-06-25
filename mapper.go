@@ -184,9 +184,9 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 		metaIdentifier := MetaIdentifier{}
 
 		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
-		if metaIdentifier.DeploymentsIdentifier.MatchLabels == nil && metaIdentifier.PodsIdentifier == nil && metaIdentifier.ReplicaSetsIdentifier == nil && metaIdentifier.ServicesIdentifier.MatchLabels == nil && metaIdentifier.IngressBackendServicesIdentifier != nil {
+		if metaIdentifier.DeploymentsIdentifier.MatchLabels == nil && metaIdentifier.PodsIdentifier == nil && metaIdentifier.ReplicaSetsIdentifier == nil && metaIdentifier.ServicesIdentifier.MatchLabels == nil && metaIdentifier.IngressIdentifier.IngressBackendServices != nil {
 			//Its an object with just ingress
-			for _, ingressBackendService := range metaIdentifier.IngressBackendServicesIdentifier {
+			for _, ingressBackendService := range metaIdentifier.IngressIdentifier.IngressBackendServices {
 				if ingressBackendService == serviceName {
 					//This ingress belongs to this service. Add it
 					ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
