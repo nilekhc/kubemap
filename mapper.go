@@ -110,7 +110,6 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 		isMatched := false
 		for _, namespaceKey := range namespaceKeys {
-			isMatched = false
 			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
 			metaIdentifier := MetaIdentifier{}
 
