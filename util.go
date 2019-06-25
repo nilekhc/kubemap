@@ -4,7 +4,6 @@ import (
 	"conducktor/duckmapoperator/types"
 	"encoding/json"
 	"fmt"
-	"mapper/utils"
 
 	apps_v1beta1 "k8s.io/api/apps/v1beta1"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
@@ -142,8 +141,8 @@ func metaResourceKeyFunc(obj interface{}) (string, error) {
 			}
 			ingressIdentifier.Names = append(ingressIdentifier.Names, ingress.Name)
 		}
-		ingressIdentifier.IngressBackendServices = utils.RemoveDuplicateStrings(ingressIdentifier.IngressBackendServices)
-		ingressIdentifier.Names = utils.RemoveDuplicateStrings(ingressIdentifier.Names)
+		ingressIdentifier.IngressBackendServices = removeDuplicateStrings(ingressIdentifier.IngressBackendServices)
+		ingressIdentifier.Names = removeDuplicateStrings(ingressIdentifier.Names)
 	}
 
 	if object.Kube.Services != nil {
