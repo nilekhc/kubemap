@@ -405,6 +405,60 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			MappedResource: newMappedResourceWithIngress,
 		}, nil
 	}
+
+	//Handle Delete
+	if obj.EventType == "DELETED" {
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
+
+		var newSvcSet []core_v1.Service
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+			for _, mappedSvcName := range metaIdentifier.ServicesIdentifier.Names {
+				if mappedSvcName == obj.Name {
+					//Pod is being deleted.
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					newSvcSet = nil
+					for _, mappedService := range mappedResource.Kube.Services {
+						if mappedService.Name != obj.Name {
+							newSvcSet = append(newSvcSet, mappedService)
+						}
+					}
+
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.Services) > 1 {
+						//It has another resources.
+						mappedResource.Kube.Services = nil
+						mappedResource.Kube.Services = newSvcSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:         "Deleted",
+						Key:            namespaceKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+
+				}
+			}
+		}
+	}
 	return MapResult{}, nil
 }
 
@@ -568,6 +622,60 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			IsMapped:       true,
 			MappedResource: newMappedService,
 		}, nil
+	}
+
+	//Handle Delete
+	if obj.EventType == "DELETED" {
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
+
+		var newDepSet []apps_v1beta2.Deployment
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+			for _, mappedDepName := range metaIdentifier.DeploymentsIdentifier.Names {
+				if mappedDepName == obj.Name {
+					//Pod is being deleted.
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					newDepSet = nil
+					for _, mappedDeployment := range mappedResource.Kube.Deployments {
+						if mappedDeployment.Name != obj.Name {
+							newDepSet = append(newDepSet, mappedDeployment)
+						}
+					}
+
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.Deployments) > 1 {
+						//It has another resources.
+						mappedResource.Kube.Deployments = nil
+						mappedResource.Kube.Deployments = newDepSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:         "Deleted",
+						Key:            namespaceKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+
+				}
+			}
+		}
 	}
 	return MapResult{}, nil
 }
@@ -770,9 +878,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							newPodSet = append(newPodSet, mappedPod)
 						}
 					}
-					fmt.Printf("\nPod Name - %s\nNew Pod set - %v", obj.Name, newPodSet)
 
-					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 1 {
 						//It has another resources.
 						mappedResource.Kube.Pods = nil
 						mappedResource.Kube.Pods = newPodSet
@@ -783,25 +890,14 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							IsMapped:       true,
 							MappedResource: mappedResource,
 						}, nil
-					} else if len(mappedResource.Kube.Pods) > 1 {
-						//It has one or more pods
-						mappedResource.Kube.Pods = nil
-						mappedResource.Kube.Pods = newPodSet
-
-						return MapResult{
-							Action:         "Updated",
-							Key:            namespaceKey,
-							IsMapped:       true,
-							MappedResource: mappedResource,
-						}, nil
-					} else {
-						return MapResult{
-							Action:         "Deleted",
-							Key:            namespaceKey,
-							IsMapped:       true,
-							MappedResource: mappedResource,
-						}, nil
 					}
+					return MapResult{
+						Action:         "Deleted",
+						Key:            namespaceKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+
 				}
 			}
 		}
@@ -984,6 +1080,60 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			MappedResource: newMappedService,
 		}, nil
 
+	}
+
+	//Handle Delete
+	if obj.EventType == "DELETED" {
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
+
+		var newRsSet []ext_v1beta1.ReplicaSet
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+			for _, rsChileSet := range metaIdentifier.ReplicaSetsIdentifier {
+				if rsChileSet.Name == obj.Name {
+					//Pod is being deleted.
+					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+					newRsSet = nil
+					for _, mappedRs := range mappedResource.Kube.ReplicaSets {
+						if mappedRs.Name != obj.Name {
+							newRsSet = append(newRsSet, mappedRs)
+						}
+					}
+
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.ReplicaSets) > 1 {
+						//It has another resources.
+						mappedResource.Kube.ReplicaSets = nil
+						mappedResource.Kube.ReplicaSets = newRsSet
+
+						return MapResult{
+							Action:         "Updated",
+							Key:            namespaceKey,
+							IsMapped:       true,
+							MappedResource: mappedResource,
+						}, nil
+					}
+					return MapResult{
+						Action:         "Deleted",
+						Key:            namespaceKey,
+						IsMapped:       true,
+						MappedResource: mappedResource,
+					}, nil
+
+				}
+			}
+		}
 	}
 
 	return MapResult{}, nil
