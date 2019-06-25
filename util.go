@@ -1,8 +1,10 @@
 package kubemap
 
 import (
+	"conducktor/duckmapoperator/types"
+	"encoding/json"
 	"fmt"
-	"strings"
+	"mapper/utils"
 
 	apps_v1beta1 "k8s.io/api/apps/v1beta1"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
@@ -11,6 +13,7 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 // ObjectMetaData returns metadata of a given k8s object
@@ -110,45 +113,201 @@ func copyMappedResource(resource MappedResource) MappedResource {
 	return copiedMappedResource
 }
 
-// func metaResourceKeyFunc(obj interface{}) (string, error) {
-// 	object := obj.(MappedResource)
+//MetaNamespaceKeyFunc provides store key for managing queue per namespace
+func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
+	object := obj.(types.QueueMap)
 
-// 	if object.Services != nil {
-// 		return object.Services[0].Namespace + "/" + object.CurrentType + "/" + object.Services[0].Name, nil
-// 	} else if object.Deployments != nil {
-// 		return object.Deployments[0].Namespace + "/" + object.CurrentType + "/" + object.Deployments[0].Name, nil
-// 	} else if object.ReplicaSets != nil {
-// 		return object.ReplicaSets[0].Namespace + "/" + object.CurrentType + "/" + object.ReplicaSets[0].Name, nil
-// 	} else if object.Pods != nil {
-// 		return object.Pods[0].Namespace + "/" + object.CurrentType + "/" + object.Pods[0].Name, nil
-// 	} else if object.Ingresses != nil {
-// 		//If just ingress object is created then there is nothing to map to it.
-// 		//So there will only be one entry for Ingress
-// 		return object.Ingresses[0].Namespace + "/" + object.CurrentType + "/" + object.Ingresses[0].Name, nil
-// 	}
+	return object.Namespace, nil
+}
 
-// 	return "", fmt.Errorf("Can't determine key for given object")
-// }
-
-// MetaNamespaceWithoutHashKeyFunc is a convenient default KeyFunc which knows how to make keys for MappedResource
+//MetaIdentifierKeyFunc creates index based on each resource type's identifier like Match Lables, Owner reference etc
 func metaResourceKeyFunc(obj interface{}) (string, error) {
+	var rsIdentifier, podIdentifier []ChildSet
+	var serviceMeta, deploymentMeta MetaSet
+	var ingressIdentifier IngressSet
+
 	object := obj.(MappedResource)
 
-	if object.Kube.Services != nil {
-		return object.Kube.Services[0].Namespace + "/" + object.CurrentType + "/" + object.Kube.Services[0].Name, nil
-	} else if object.Kube.Deployments != nil {
-		return object.Kube.Deployments[0].Namespace + "/" + object.CurrentType + "/" + object.Kube.Deployments[0].Name, nil
-	} else if object.Kube.ReplicaSets != nil {
-		return object.Kube.ReplicaSets[0].Namespace + "/" + object.CurrentType + "/" + object.Kube.ReplicaSets[0].Name, nil
-	} else if object.Kube.Pods != nil {
-		return object.Kube.Pods[0].Namespace + "/" + object.CurrentType + "/" + object.Kube.Pods[0].Name, nil
-	} else if object.Kube.Ingresses != nil {
-		//If just ingress object is created then there is nothing to map to it.
-		//So there will only be one entry for Ingress
-		return object.Kube.Ingresses[0].Namespace + "/" + object.CurrentType + "/" + object.Kube.Ingresses[0].Name, nil
-	} else if object.Kube.Events != nil {
-		return object.Kube.Events[0].Namespace + "/" + object.EventType + "/" + strings.ToLower(object.Kube.Events[0].InvolvedObject.Kind) + "/" + object.Kube.Events[0].Name, nil
+	if object.Kube.Ingresses != nil {
+		for _, ingress := range object.Kube.Ingresses {
+			//Get all services from ingress rules
+			for _, ingressRule := range ingress.Spec.Rules {
+				if ingressRule.IngressRuleValue.HTTP != nil {
+					for _, ingressRuleValueHTTPPath := range ingressRule.IngressRuleValue.HTTP.Paths {
+						if ingressRuleValueHTTPPath.Backend.ServiceName != "" {
+							ingressIdentifier.IngressBackendServices = append(ingressIdentifier.IngressBackendServices, ingressRuleValueHTTPPath.Backend.ServiceName)
+						}
+					}
+				}
+			}
+			ingressIdentifier.Names = append(ingressIdentifier.Names, ingress.Name)
+		}
+		ingressIdentifier.IngressBackendServices = utils.RemoveDuplicateStrings(ingressIdentifier.IngressBackendServices)
+		ingressIdentifier.Names = utils.RemoveDuplicateStrings(ingressIdentifier.Names)
 	}
 
-	return "", fmt.Errorf("Can't determine key for given object")
+	if object.Kube.Services != nil {
+		for _, service := range object.Kube.Services {
+			if service.Spec.Selector != nil {
+				serviceMeta.MatchLabels = append(serviceMeta.MatchLabels, service.Spec.Selector)
+			}
+			serviceMeta.Names = append(serviceMeta.Names, service.Name)
+		}
+	}
+
+	if object.Kube.Deployments != nil {
+		for _, deployment := range object.Kube.Deployments {
+			if deployment.Spec.Selector.MatchLabels != nil {
+				deploymentMeta.MatchLabels = append(deploymentMeta.MatchLabels, deployment.Spec.Selector.MatchLabels)
+			}
+			deploymentMeta.Names = append(deploymentMeta.Names, deployment.Name)
+		}
+	}
+
+	if object.Kube.ReplicaSets != nil {
+		var rsOwnerReferences []string
+		var rsMatchLables map[string]string
+
+		for _, replicaSet := range object.Kube.ReplicaSets {
+			rsOwnerReferences = nil
+
+			if replicaSet.OwnerReferences != nil {
+				for _, ownerReference := range replicaSet.OwnerReferences {
+					rsOwnerReferences = append(rsOwnerReferences, ownerReference.Name)
+				}
+			}
+
+			if replicaSet.Spec.Selector.MatchLabels != nil {
+				rsMatchLables = replicaSet.Spec.Selector.MatchLabels
+			}
+
+			rsIdentifier = append(rsIdentifier, ChildSet{
+				Name:            replicaSet.Name,
+				OwnerReferences: rsOwnerReferences,
+				MatchLabels:     rsMatchLables,
+			})
+		}
+	}
+
+	if object.Kube.Pods != nil {
+		var podOwnerReferences []string
+		var podMatchLables map[string]string
+
+		for _, pod := range object.Kube.Pods {
+			podOwnerReferences = nil
+
+			if pod.OwnerReferences != nil {
+				for _, ownerReference := range pod.OwnerReferences {
+					podOwnerReferences = append(podOwnerReferences, ownerReference.Name)
+				}
+			}
+
+			if pod.Labels != nil {
+				podMatchLables = pod.Labels
+			}
+
+			podIdentifier = append(podIdentifier, ChildSet{
+				Name:            pod.Name,
+				OwnerReferences: podOwnerReferences,
+				MatchLabels:     podMatchLables,
+			})
+		}
+	}
+
+	key := MetaIdentifier{
+		IngressIdentifier:     ingressIdentifier,
+		ServicesIdentifier:    serviceMeta,
+		DeploymentsIdentifier: deploymentMeta,
+		ReplicaSetsIdentifier: rsIdentifier,
+		PodsIdentifier:        podIdentifier,
+	}
+
+	jsonKey, _ := json.Marshal(key)
+
+	return fmt.Sprintf("%s/%s", object.Namespace, jsonKey), nil
+}
+
+func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
+	item, exists, err := store.GetByKey(key)
+
+	if err != nil {
+		return MappedResource{}, err
+	}
+
+	if exists {
+		return item.(MappedResource), nil
+	}
+	return MappedResource{}, fmt.Errorf("Object with key %s does not exist in store", key)
+}
+
+func updateStore(results []MapResult, store cache.Store) error {
+	for _, result := range results {
+		if result.IsMapped && !result.IsStoreUpdated {
+			switch result.Action {
+			case "Added", "Updated":
+				if result.Key != "" {
+					//Update object in store
+					existingMappedResource, err := getObjectFromStore(result.Key, store)
+					if err != nil {
+						return err
+					}
+
+					//Delete exiting resource from store
+					err = store.Delete(existingMappedResource)
+					if err != nil {
+						return err
+					}
+
+					//Add new mapped resource to store
+					err = store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
+				} else if len(result.DeleteKeys) > 0 {
+					//Needs to delete multiple resources
+					//Update object in store
+					for _, deleteKey := range result.DeleteKeys {
+						existingMappedResource, err := getObjectFromStore(deleteKey, store)
+						if err != nil {
+							return err
+						}
+
+						//Delete exiting resource from store
+						err = store.Delete(existingMappedResource)
+						if err != nil {
+							return err
+						}
+					}
+
+					//Add new mapped resource to store
+					err := store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
+				} else {
+					//If key is not present then its new mapped resource.
+					//Add new individual mapped resource to store
+					err := store.Add(result.MappedResource)
+					if err != nil {
+						return err
+					}
+				}
+			case "Deleted":
+				if result.Key != "" {
+					//Get object from store
+					existingMappedResource, err := getObjectFromStore(result.Key, store)
+					if err != nil {
+						return err
+					}
+
+					//Delete existing resource from store
+					err = store.Delete(existingMappedResource)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }

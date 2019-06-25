@@ -31,7 +31,7 @@ func NewStoreMapper(store cache.Store) *Mapper {
 
 //StoreMap gets a resources and maps it with exiting resources in store
 func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
-	mapResults, err := kubemap(obj, m.store)
+	mapResults, err := kubemapper(obj, m.store)
 	if err != nil {
 		return []MapResult{}, err
 	}
@@ -101,8 +101,7 @@ func processNextItemToMap(queue workqueue.RateLimitingInterface, store cache.Sto
 }
 
 func processK8sItem(obj interface{}, store cache.Store) error {
-	//mapResource(obj, store)
-	_, err := kubemap(obj, store)
+	_, err := kubemapper(obj, store)
 	if err != nil {
 		return err
 	}
