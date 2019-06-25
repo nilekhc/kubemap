@@ -134,6 +134,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 										Key:            namespaceKey,
 										IsMapped:       true,
 										MappedResource: mappedResource,
+										Message:        fmt.Sprintf("Ingress %s updated in Common Label %s", ingress.Name, mappedResource.CommonLabel),
 									},
 								)
 							}
@@ -148,6 +149,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 									Key:            namespaceKey,
 									IsMapped:       true,
 									MappedResource: mappedResource,
+									Message:        fmt.Sprintf("Ingress %s added in Common Label %s", ingress.Name, mappedResource.CommonLabel),
 								},
 							)
 						}
@@ -169,6 +171,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 					Action:         "Added",
 					IsMapped:       true,
 					MappedResource: newMappedService,
+					Message:        fmt.Sprintf("New ingress %s created with Common Label %s", ingress.Name, newMappedService.CommonLabel),
 				},
 			)
 		}
@@ -236,6 +239,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 										Key:            namespaceKey,
 										IsMapped:       true,
 										MappedResource: mappedResource,
+										Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
 									},
 								)
 							} else {
@@ -246,6 +250,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 										IsMapped:       true,
 										CommonLabel:    mappedResource.CommonLabel,
 										MappedResource: mappedResource,
+										Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
 									},
 								)
 							}
@@ -325,6 +330,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
 								MappedResource: newMappedResource,
+								Message:        fmt.Sprintf("Service %s updated in Common Label %s after matching with service.", service.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -350,6 +356,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
 								MappedResource: newMappedResource,
+								Message:        fmt.Sprintf("Service %s updated in Common Label %s after matching with deployment.", service.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -368,6 +375,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
 						MappedResource: newMappedResource,
+						Message:        fmt.Sprintf("Service %s is added to Common Label %s after matching with deployment.", service.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -399,6 +407,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
 								MappedResource: newMappedResource,
+								Message:        fmt.Sprintf("Service %s is updated in Common Label %s after matching with replica set.", service.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -416,6 +425,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
 						MappedResource: newMappedResource,
+						Message:        fmt.Sprintf("Service %s is added to Common Label %s after matching with replica set.", service.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -447,6 +457,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								DeleteKeys:     deleteKeys,
 								IsMapped:       true,
 								MappedResource: newMappedResource,
+								Message:        fmt.Sprintf("Service %s is updated in Common Label %s after matching with pod.", service.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -465,6 +476,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						DeleteKeys:     deleteKeys,
 						IsMapped:       true,
 						MappedResource: newMappedResource,
+						Message:        fmt.Sprintf("Service %s is added to Common Label %s after matching with pod.", service.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -485,6 +497,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			IsMapped:       true,
 			DeleteKeys:     deleteKeys,
 			MappedResource: newMappedResourceWithIngress,
+			Message:        fmt.Sprintf("New service %s is added with Common Label %s", service.Name, newMappedResourceWithIngress.CommonLabel),
 		}, nil
 	}
 
@@ -528,6 +541,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Service %s is deleted from Common Label %s", service.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 					return MapResult{
@@ -536,6 +550,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						IsMapped:       true,
 						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Service %s is deleted from Common Label %s", service.Name, mappedResource.CommonLabel),
 					}, nil
 
 				}
@@ -582,6 +597,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Deployment %s is updated in Common Label %s after matching with service", deployment.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -592,6 +608,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Deployment %s is added to Common Label %s after matching with service", deployment.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -611,6 +628,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Deployment %s is updated io Common Label %s after matching with deployment", deployment.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -633,6 +651,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 									Key:            namespaceKey,
 									IsMapped:       true,
 									MappedResource: mappedResource,
+									Message:        fmt.Sprintf("Deployment %s is updated io Common Label %s after matching with replica set", deployment.Name, mappedResource.CommonLabel),
 								}, nil
 							}
 						}
@@ -646,6 +665,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Deployment %s is added to Common Label %s after matching with replica set", deployment.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 				}
@@ -675,6 +695,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Deployment %s is updated io Common Label %s after matching with pod", deployment.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -688,6 +709,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Deployment %s is added to Common Label %s after matching with pod", deployment.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -704,6 +726,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			Action:         "Added",
 			IsMapped:       true,
 			MappedResource: newMappedService,
+			Message:        fmt.Sprintf("New deployment %s is created with Common Label %s", deployment.Name, newMappedService.CommonLabel),
 		}, nil
 	}
 
@@ -747,6 +770,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Deployment %s is deleted from Common Label %s", deployment.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 					return MapResult{
@@ -755,6 +779,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						IsMapped:       true,
 						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Deployment %s is deleted from Common Label %s", deployment.Name, mappedResource.CommonLabel),
 					}, nil
 
 				}
@@ -809,6 +834,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Pod %s is updated in Common Label %s after matching with service", pod.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -819,6 +845,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Pod %s is added to Common Label %s after matching with service", pod.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -846,6 +873,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Pod %s is updated in Common Label %s after matching with deployment", pod.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -856,6 +884,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Pod %s is added to Common Label %s after matching with deployment", pod.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -883,6 +912,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Pod %s is updated in Common Label %s after matching with replica set", pod.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -893,6 +923,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Pod %s is added to Common Label %s after matching with replica set", pod.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -912,6 +943,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Pod %s is updated to Common Label %s after matching with pod", pod.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -930,6 +962,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			Action:         "Added",
 			IsMapped:       true,
 			MappedResource: newMappedService,
+			Message:        fmt.Sprintf("New pod %s is created with Common Label %s", pod.Name, newMappedService.CommonLabel),
 		}, nil
 	}
 
@@ -973,6 +1006,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Pod %s is deleted from Common Label %s", pod.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 					return MapResult{
@@ -981,6 +1015,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						IsMapped:       true,
 						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Pod %s is deleted from Common Label %s", pod.Name, mappedResource.CommonLabel),
 					}, nil
 
 				}
@@ -1038,6 +1073,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 									Key:            namespaceKey,
 									IsMapped:       true,
 									MappedResource: mappedResource,
+									Message:        fmt.Sprintf("Replica set %s is updated in Common Label %s after matching with service", replicaSet.Name, mappedResource.CommonLabel),
 								}, nil
 							}
 						}
@@ -1048,6 +1084,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Replica set %s is added to Common Label %s after matching with service", replicaSet.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 				}
@@ -1076,6 +1113,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Replica set %s is updated in Common Label %s after matching with deployment", replicaSet.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -1086,6 +1124,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Replica set %s is added to Common Label %s after matching with deployment", replicaSet.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -1105,6 +1144,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Replica set %s is updated io Common Label %s after matching with replica set", replicaSet.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -1134,6 +1174,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 								Key:            namespaceKey,
 								IsMapped:       true,
 								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Replica set %s is updated in Common Label %s after matching with pod", replicaSet.Name, mappedResource.CommonLabel),
 							}, nil
 						}
 					}
@@ -1147,6 +1188,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						Key:            namespaceKey,
 						IsMapped:       true,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Replica set %s is added to Common Label %s after matching with pod", replicaSet.Name, mappedResource.CommonLabel),
 					}, nil
 				}
 			}
@@ -1163,6 +1205,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			Action:         "Added",
 			IsMapped:       true,
 			MappedResource: newMappedService,
+			Message:        fmt.Sprintf("New replica set %s is added with Common Label %s", replicaSet.Name, newMappedService.CommonLabel),
 		}, nil
 
 	}
@@ -1207,6 +1250,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Key:            namespaceKey,
 							IsMapped:       true,
 							MappedResource: mappedResource,
+							Message:        fmt.Sprintf("Replica set %s is deleted from Common Label %s", replicaSet.Name, mappedResource.CommonLabel),
 						}, nil
 					}
 					return MapResult{
@@ -1215,6 +1259,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						IsMapped:       true,
 						CommonLabel:    mappedResource.CommonLabel,
 						MappedResource: mappedResource,
+						Message:        fmt.Sprintf("Replica set %s is deleted from Common Label %s", replicaSet.Name, mappedResource.CommonLabel),
 					}, nil
 
 				}
