@@ -174,6 +174,88 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		}
 		return mapResults, nil
 	}
+
+	//Handle Delete
+	if obj.EventType == "DELETED" {
+		keys := store.ListKeys()
+		for _, key := range keys {
+			if len(strings.Split(key, "/")) > 0 {
+				if strings.Split(key, "/")[0] == obj.Namespace {
+					namespaceKeys = append(namespaceKeys, key)
+				}
+			}
+		}
+
+		for _, namespaceKey := range namespaceKeys {
+			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifier := MetaIdentifier{}
+
+			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+			for _, ingressName := range metaIdentifier.IngressIdentifier.Names {
+				if ingressName == obj.Name {
+					//This contains possible list of services to which this ingress is attached.
+					//Delete ingress from it.
+					ingressBackendServices = metaIdentifier.IngressIdentifier.IngressBackendServices
+				}
+			}
+		}
+
+		for _, ingressBackendService := range ingressBackendServices {
+			for _, namespaceKey := range namespaceKeys {
+				metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+				metaIdentifier := MetaIdentifier{}
+
+				json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+				var newIngressSet []ext_v1beta1.Ingress
+				for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
+					if serviceName == ingressBackendService {
+						//Services matched. See if ingress is present. If it is, then delete it.
+						mappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+						newIngressSet = nil
+						isPresent := false
+						for _, mappedIngress := range mappedResource.Kube.Ingresses {
+							if mappedIngress.Name == obj.Name {
+								isPresent = true
+							} else {
+								newIngressSet = append(newIngressSet, mappedIngress)
+							}
+						}
+
+						if isPresent {
+							if len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.Ingresses) > 1 {
+								//It has another resources.
+								mappedResource.Kube.Ingresses = nil
+								mappedResource.Kube.Ingresses = newIngressSet
+
+								mapResults = append(mapResults,
+									MapResult{
+										Action:         "Updated",
+										Key:            namespaceKey,
+										IsMapped:       true,
+										MappedResource: mappedResource,
+									},
+								)
+							} else {
+								mapResults = append(mapResults,
+									MapResult{
+										Action:         "Deleted",
+										Key:            namespaceKey,
+										IsMapped:       true,
+										CommonLabel:    mappedResource.CommonLabel,
+										MappedResource: mappedResource,
+									},
+								)
+							}
+						}
+					}
+				}
+			}
+		}
+		return mapResults, nil
+	}
 	return []MapResult{}, nil
 }
 
