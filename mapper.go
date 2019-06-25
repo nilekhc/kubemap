@@ -576,7 +576,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var pod core_v1.Pod
 	var namespaceKeys []string
 
-	if obj.Event != nil && obj.Event != "DELETED" {
+	if obj.Event != nil {
 		pod = *obj.Event.(*core_v1.Pod).DeepCopy()
 
 		keys := store.ListKeys()
@@ -742,7 +742,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	}
 
 	//Handle Delete
-	if obj.Event == "DELETED" {
+	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
 		for _, key := range keys {
 			if len(strings.Split(key, "/")) > 0 {
