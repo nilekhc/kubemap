@@ -770,8 +770,9 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							newPodSet = append(newPodSet, mappedPod)
 						}
 					}
+					fmt.Printf("\nPod Name - %s\nNew Pod set - %v", obj.Name, newPodSet)
 
-					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 {
+					if len(mappedResource.Kube.Ingresses) > 0 || len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 {
 						//It has another resources.
 						mappedResource.Kube.Pods = nil
 						mappedResource.Kube.Pods = newPodSet
