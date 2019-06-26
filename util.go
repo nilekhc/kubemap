@@ -1,7 +1,6 @@
 package kubemap
 
 import (
-	"conducktor/duckmapoperator/types"
 	"encoding/json"
 	"fmt"
 
@@ -110,13 +109,6 @@ func copyMappedResource(resource MappedResource) MappedResource {
 	copiedMappedResource.Namespace = resource.Namespace
 
 	return copiedMappedResource
-}
-
-//MetaNamespaceKeyFunc provides store key for managing queue per namespace
-func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
-	object := obj.(types.QueueMap)
-
-	return object.Namespace, nil
 }
 
 //MetaIdentifierKeyFunc creates index based on each resource type's identifier like Match Lables, Owner reference etc
