@@ -106,7 +106,7 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			}
 		}
 
-		addIngress(store, ingress, namespaceKeys, ingressBackendServices)
+		return addIngress(store, ingress, namespaceKeys, ingressBackendServices)
 	}
 
 	//Handle Delete
