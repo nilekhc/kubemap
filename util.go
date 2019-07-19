@@ -215,7 +215,7 @@ func metaResourceKeyFunc(obj interface{}) (string, error) {
 
 	jsonKey, _ := json.Marshal(key)
 
-	return fmt.Sprintf("%s/%s", object.Namespace, jsonKey), nil
+	return fmt.Sprintf("%s$%s", object.Namespace, jsonKey), nil
 }
 
 func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
