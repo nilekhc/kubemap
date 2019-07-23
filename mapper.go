@@ -210,6 +210,15 @@ func addIngress(store cache.Store, ingress ext_v1beta1.Ingress, namespaceKeys, i
 			},
 		)
 	}
+
+	//Update store right sway. Helps in B/G scenarios of ingress
+	updateStore(mapResults, store)
+
+	//Set IsStoreUpdated to true
+	for _, mapResult := range mapResults {
+		mapResult.IsStoreUpdated = true
+	}
+
 	return mapResults, nil
 }
 
@@ -295,6 +304,15 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string)
 			}
 		}
 	}
+
+	//Update store right sway. Helps in B/G scenarios of ingress
+	updateStore(mapResults, store)
+
+	//Set IsStoreUpdated to true
+	for _, mapResult := range mapResults {
+		mapResult.IsStoreUpdated = true
+	}
+
 	return mapResults, nil
 }
 
