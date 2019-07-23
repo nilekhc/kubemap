@@ -99,8 +99,8 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
@@ -121,7 +121,7 @@ func addIngress(store cache.Store, ingress ext_v1beta1.Ingress, namespaceKeys, i
 
 	isMatched := false
 	for _, namespaceKey := range namespaceKeys {
-		metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 		metaIdentifier := MetaIdentifier{}
 
 		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -194,15 +194,15 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string,
 	var mapResults []MapResult
 	keys := store.ListKeys()
 	for _, key := range keys {
-		if len(strings.Split(key, "/")) > 0 {
-			if strings.Split(key, "/")[0] == obj.Namespace {
+		if len(strings.Split(key, "$")) > 0 {
+			if strings.Split(key, "$")[0] == obj.Namespace {
 				namespaceKeys = append(namespaceKeys, key)
 			}
 		}
 	}
 
 	for _, namespaceKey := range namespaceKeys {
-		metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 		metaIdentifier := MetaIdentifier{}
 
 		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -218,7 +218,7 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string,
 
 	for _, ingressBackendService := range ingressBackendServices {
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -277,7 +277,7 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string,
 func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKeys []string, store cache.Store) (MappedResource, []string) {
 	var oldIngressDeleteKeys []string
 	for _, namespaceKey := range namespaceKeys {
-		metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 		metaIdentifier := MetaIdentifier{}
 
 		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -339,15 +339,15 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
 		}
 
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -546,8 +546,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
@@ -555,7 +555,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		var newSvcSet []core_v1.Service
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -610,15 +610,15 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
 		}
 
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -775,8 +775,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
@@ -784,7 +784,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		var newDepSet []apps_v1beta2.Deployment
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -839,15 +839,15 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
 		}
 
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -1011,8 +1011,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
@@ -1020,7 +1020,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		var newPodSet []core_v1.Pod
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -1075,15 +1075,15 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
 		}
 
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
@@ -1255,8 +1255,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
 		for _, key := range keys {
-			if len(strings.Split(key, "/")) > 0 {
-				if strings.Split(key, "/")[0] == obj.Namespace {
+			if len(strings.Split(key, "$")) > 0 {
+				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
 				}
 			}
@@ -1264,7 +1264,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 		var newRsSet []ext_v1beta1.ReplicaSet
 		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "/")[1]
+			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
