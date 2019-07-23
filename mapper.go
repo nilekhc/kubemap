@@ -116,13 +116,14 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			if delErr != nil {
 				return []MapResult{}, delErr
 			}
-			mapResults = append(mapResults, deleteResults...)
 
 			addResults, addErr := addIngress(store, ingress, namespaceKeys, ingressBackendServices)
 			if addErr != nil {
 				return []MapResult{}, delErr
 			}
+
 			mapResults = append(mapResults, addResults...)
+			mapResults = append(mapResults, deleteResults...)
 
 			fmt.Println("Ingress deleted then added")
 			return mapResults, nil
