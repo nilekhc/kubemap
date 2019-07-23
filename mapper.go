@@ -106,12 +106,35 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			}
 		}
 
-		return addIngress(store, ingress, namespaceKeys, ingressBackendServices)
+		if obj.EventType == "ADDED" {
+			fmt.Println("Ingress added")
+			return addIngress(store, ingress, namespaceKeys, ingressBackendServices)
+		} else if obj.EventType == "UPDATED" {
+			mapResults := []MapResult{}
+
+			deleteResults, delErr := deleteIngress(store, obj, namespaceKeys)
+			if delErr != nil {
+				return []MapResult{}, delErr
+			}
+			mapResults = append(mapResults, deleteResults...)
+
+			addResults, addErr := addIngress(store, ingress, namespaceKeys, ingressBackendServices)
+			if addErr != nil {
+				return []MapResult{}, delErr
+			}
+			mapResults = append(mapResults, addResults...)
+
+			fmt.Println("Ingress deleted then added")
+			return mapResults, nil
+		}
+
+		// return addIngress(store, ingress, namespaceKeys, ingressBackendServices)
 	}
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
-		return deleteIngress(store, obj, namespaceKeys, ingress)
+		fmt.Println("Ingress deleted")
+		return deleteIngress(store, obj, namespaceKeys)
 	}
 	return []MapResult{}, nil
 }
@@ -189,7 +212,7 @@ func addIngress(store cache.Store, ingress ext_v1beta1.Ingress, namespaceKeys, i
 	return mapResults, nil
 }
 
-func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string, ingress ext_v1beta1.Ingress) ([]MapResult, error) {
+func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string) ([]MapResult, error) {
 	var ingressBackendServices []string
 	var mapResults []MapResult
 	keys := store.ListKeys()
@@ -251,7 +274,7 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string,
 									Key:            namespaceKey,
 									IsMapped:       true,
 									MappedResource: mappedResource,
-									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
+									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", obj.Name, mappedResource.CommonLabel),
 								},
 							)
 						} else {
@@ -262,7 +285,7 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string,
 									IsMapped:       true,
 									CommonLabel:    mappedResource.CommonLabel,
 									MappedResource: mappedResource,
-									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
+									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", obj.Name, mappedResource.CommonLabel),
 								},
 							)
 						}
