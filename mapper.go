@@ -107,7 +107,6 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		}
 
 		if obj.EventType == "ADDED" {
-			fmt.Println("Ingress added")
 			return addIngress(store, ingress, namespaceKeys, ingressBackendServices)
 		} else if obj.EventType == "UPDATED" {
 			mapResults := []MapResult{}
@@ -125,7 +124,6 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mapResults = append(mapResults, addResults...)
 			mapResults = append(mapResults, deleteResults...)
 
-			fmt.Println("Ingress deleted then added")
 			return mapResults, nil
 		}
 
@@ -134,7 +132,6 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
-		fmt.Println("Ingress deleted")
 		return deleteIngress(store, obj, namespaceKeys)
 	}
 	return []MapResult{}, nil
@@ -215,8 +212,8 @@ func addIngress(store cache.Store, ingress ext_v1beta1.Ingress, namespaceKeys, i
 	updateStore(mapResults, store)
 
 	//Set IsStoreUpdated to true
-	for _, mapResult := range mapResults {
-		mapResult.IsStoreUpdated = true
+	for i := range mapResults {
+		mapResults[i].IsStoreUpdated = true
 	}
 
 	return mapResults, nil
@@ -309,8 +306,8 @@ func deleteIngress(store cache.Store, obj ResourceEvent, namespaceKeys []string)
 	updateStore(mapResults, store)
 
 	//Set IsStoreUpdated to true
-	for _, mapResult := range mapResults {
-		mapResult.IsStoreUpdated = true
+	for i := range mapResults {
+		mapResults[i].IsStoreUpdated = true
 	}
 
 	return mapResults, nil
