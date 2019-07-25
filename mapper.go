@@ -111,17 +111,25 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		} else if obj.EventType == "UPDATED" {
 			mapResults := []MapResult{}
 
-			// deleteResults, delErr := deleteIngress(store, obj, namespaceKeys)
-			// if delErr != nil {
-			// 	return []MapResult{}, delErr
-			// }
+			deleteResults, delErr := deleteIngress(store, obj, namespaceKeys)
+			if delErr != nil {
+				return []MapResult{}, delErr
+			}
 
 			addResults, addErr := addIngress(store, ingress, namespaceKeys, ingressBackendServices)
 			if addErr != nil {
 				return []MapResult{}, addErr
 			}
 
-			mapResults = append(mapResults, addResults...)
+			for _, addResult := range addResults {
+				mapResults = append(mapResults, addResult)
+			}
+
+			for _, deleteResult := range deleteResults {
+				mapResults = append(mapResults, deleteResult)
+			}
+
+			// mapResults = append(mapResults, addResults...)
 			// mapResults = append(mapResults, deleteResults...)
 
 			return mapResults, nil
