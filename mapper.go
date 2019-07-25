@@ -121,12 +121,12 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 				return []MapResult{}, addErr
 			}
 
-			for _, addResult := range addResults {
-				mapResults = append(mapResults, addResult)
-			}
-
 			for _, deleteResult := range deleteResults {
 				mapResults = append(mapResults, deleteResult)
+			}
+
+			for _, addResult := range addResults {
+				mapResults = append(mapResults, addResult)
 			}
 
 			// mapResults = append(mapResults, addResults...)
