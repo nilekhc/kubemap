@@ -1,6 +1,7 @@
 package kubemap
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -80,12 +81,10 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	var ingress ext_v1beta1.Ingress
-	var namespaceKeys, ingressBackendServices []string
-	var mapResults []MapResult
+	var ingressBackendServices []string
 
 	if obj.Event != nil {
 		ingress = *obj.Event.(*ext_v1beta1.Ingress).DeepCopy()
-
 		//Get all services from ingress rules
 		for _, ingressRule := range ingress.Spec.Rules {
 			if ingressRule.IngressRuleValue.HTTP != nil {
@@ -99,49 +98,71 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 		ingressBackendServices = removeDuplicateStrings(ingressBackendServices)
 
-		keys := store.ListKeys()
-		for _, key := range keys {
-			if len(strings.Split(key, "$")) > 0 {
-				if strings.Split(key, "$")[0] == obj.Namespace {
-					namespaceKeys = append(namespaceKeys, key)
-				}
+		if obj.EventType == "ADDED" {
+			return addIngress(store, obj, ingress, ingressBackendServices)
+		} else if obj.EventType == "UPDATED" {
+			mapResults := []MapResult{}
+
+			deleteResults, delErr := deleteIngress(store, obj)
+			if delErr != nil {
+				return []MapResult{}, delErr
+			}
+
+			addResults, addErr := addIngress(store, obj, ingress, ingressBackendServices)
+			if addErr != nil {
+				return []MapResult{}, addErr
+			}
+
+			mapResults = append(mapResults, addResults...)
+			mapResults = append(mapResults, deleteResults...)
+
+			return mapResults, nil
+		}
+	}
+
+	//Handle Delete
+	if obj.EventType == "DELETED" {
+		return deleteIngress(store, obj)
+	}
+	return []MapResult{}, nil
+}
+
+func addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingress, ingressBackendServices []string) ([]MapResult, error) {
+	var mapResults []MapResult
+	var namespaceKeys []string
+
+	keys := store.ListKeys()
+	for _, b64Key := range keys {
+		encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+		key := fmt.Sprintf("%s", encodedKey)
+		if len(strings.Split(key, "$")) > 0 {
+			if strings.Split(key, "$")[0] == obj.Namespace {
+				namespaceKeys = append(namespaceKeys, key)
 			}
 		}
+	}
 
-		isMatched := false
-		for _, namespaceKey := range namespaceKeys {
-			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
-			metaIdentifier := MetaIdentifier{}
+	isMatched := false
+	for _, namespaceKey := range namespaceKeys {
+		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
+		metaIdentifier := MetaIdentifier{}
 
-			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
-			for _, ingressBackendService := range ingressBackendServices {
-				//Try matching with Service
-				for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
-					if serviceName == ingressBackendService {
-						//Get object
-						mappedResource, _ := getObjectFromStore(namespaceKey, store)
+		for _, ingressBackendService := range ingressBackendServices {
+			//Try matching with Service
+			for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
+				if serviceName == ingressBackendService {
+					//Get object
 
-						isUpdated := false
-						for i, mappedIngress := range mappedResource.Kube.Ingresses {
-							if mappedIngress.Name == ingress.Name {
-								mappedResource.Kube.Ingresses[i] = ingress
-								isUpdated = true
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
-								mapResults = append(mapResults,
-									MapResult{
-										Action:         "Updated",
-										Key:            namespaceKey,
-										IsMapped:       true,
-										MappedResource: mappedResource,
-										Message:        fmt.Sprintf("Ingress %s updated in Common Label %s", ingress.Name, mappedResource.CommonLabel),
-									},
-								)
-							}
-						}
-
-						if !isUpdated {
-							mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
+					isUpdated := false
+					for i, mappedIngress := range mappedResource.Kube.Ingresses {
+						if mappedIngress.Name == ingress.Name {
+							mappedResource.Kube.Ingresses[i] = ingress
+							isUpdated = true
 
 							mapResults = append(mapResults,
 								MapResult{
@@ -149,119 +170,155 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 									Key:            namespaceKey,
 									IsMapped:       true,
 									MappedResource: mappedResource,
-									Message:        fmt.Sprintf("Ingress %s added in Common Label %s", ingress.Name, mappedResource.CommonLabel),
+									Message:        fmt.Sprintf("Ingress %s updated in Common Label %s", ingress.Name, mappedResource.CommonLabel),
 								},
 							)
 						}
-						isMatched = true
 					}
+
+					if !isUpdated {
+						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, ingress)
+
+						mapResults = append(mapResults,
+							MapResult{
+								Action:         "Updated",
+								Key:            namespaceKey,
+								IsMapped:       true,
+								MappedResource: mappedResource,
+								Message:        fmt.Sprintf("Ingress %s added in Common Label %s", ingress.Name, mappedResource.CommonLabel),
+							},
+						)
+					}
+					isMatched = true
 				}
 			}
 		}
-		if !isMatched {
-			//Create new object with ingress
-			newMappedService := MappedResource{}
-			newMappedService.CommonLabel = ingress.Name
-			newMappedService.CurrentType = "service"
-			newMappedService.Namespace = ingress.Namespace
-			newMappedService.Kube.Ingresses = append(newMappedService.Kube.Ingresses, ingress)
+	}
+	if !isMatched {
+		//Create new object with ingress
+		newMappedService := MappedResource{}
+		newMappedService.CommonLabel = ingress.Name
+		newMappedService.CurrentType = "service"
+		newMappedService.Namespace = ingress.Namespace
+		newMappedService.Kube.Ingresses = append(newMappedService.Kube.Ingresses, ingress)
 
-			mapResults = append(mapResults,
-				MapResult{
-					Action:         "Added",
-					IsMapped:       true,
-					MappedResource: newMappedService,
-					Message:        fmt.Sprintf("New ingress %s created with Common Label %s", ingress.Name, newMappedService.CommonLabel),
-				},
-			)
-		}
-		return mapResults, nil
+		mapResults = append(mapResults,
+			MapResult{
+				Action:         "Added",
+				IsMapped:       true,
+				MappedResource: newMappedService,
+				Message:        fmt.Sprintf("New ingress %s created with Common Label %s", ingress.Name, newMappedService.CommonLabel),
+			},
+		)
 	}
 
-	//Handle Delete
-	if obj.EventType == "DELETED" {
-		keys := store.ListKeys()
-		for _, key := range keys {
-			if len(strings.Split(key, "$")) > 0 {
-				if strings.Split(key, "$")[0] == obj.Namespace {
-					namespaceKeys = append(namespaceKeys, key)
-				}
+	//Update store right sway. Helps in B/G scenarios of ingress
+	updateStore(mapResults, store)
+
+	//Set IsStoreUpdated to true
+	for i := range mapResults {
+		mapResults[i].IsStoreUpdated = true
+	}
+
+	return mapResults, nil
+}
+
+func deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResult, error) {
+	var ingressBackendServices, namespaceKeys []string
+	var mapResults []MapResult
+
+	keys := store.ListKeys()
+	for _, b64Key := range keys {
+		encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+		key := fmt.Sprintf("%s", encodedKey)
+		if len(strings.Split(key, "$")) > 0 {
+			if strings.Split(key, "$")[0] == obj.Namespace {
+				namespaceKeys = append(namespaceKeys, key)
 			}
 		}
+	}
 
+	for _, namespaceKey := range namespaceKeys {
+		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
+		metaIdentifier := MetaIdentifier{}
+
+		json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
+
+		for _, ingressName := range metaIdentifier.IngressIdentifier.Names {
+			if ingressName == obj.Name {
+				//This contains possible list of services to which this ingress is attached.
+				//Delete ingress from it.
+				ingressBackendServices = metaIdentifier.IngressIdentifier.IngressBackendServices
+			}
+		}
+	}
+
+	for _, ingressBackendService := range ingressBackendServices {
 		for _, namespaceKey := range namespaceKeys {
 			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
-			for _, ingressName := range metaIdentifier.IngressIdentifier.Names {
-				if ingressName == obj.Name {
-					//This contains possible list of services to which this ingress is attached.
-					//Delete ingress from it.
-					ingressBackendServices = metaIdentifier.IngressIdentifier.IngressBackendServices
-				}
-			}
-		}
+			var newIngressSet []ext_v1beta1.Ingress
+			for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
+				if serviceName == ingressBackendService {
+					//Services matched. See if ingress is present. If it is, then delete it.
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
-		for _, ingressBackendService := range ingressBackendServices {
-			for _, namespaceKey := range namespaceKeys {
-				metaIdentifierString := strings.Split(namespaceKey, "$")[1]
-				metaIdentifier := MetaIdentifier{}
-
-				json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
-
-				var newIngressSet []ext_v1beta1.Ingress
-				for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
-					if serviceName == ingressBackendService {
-						//Services matched. See if ingress is present. If it is, then delete it.
-						mappedResource, _ := getObjectFromStore(namespaceKey, store)
-
-						newIngressSet = nil
-						isPresent := false
-						for _, mappedIngress := range mappedResource.Kube.Ingresses {
-							if mappedIngress.Name == obj.Name {
-								isPresent = true
-							} else {
-								newIngressSet = append(newIngressSet, mappedIngress)
-							}
+					newIngressSet = nil
+					isPresent := false
+					for _, mappedIngress := range mappedResource.Kube.Ingresses {
+						if mappedIngress.Name == obj.Name {
+							isPresent = true
+						} else {
+							newIngressSet = append(newIngressSet, mappedIngress)
 						}
+					}
 
-						if isPresent {
-							if len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.Ingresses) > 1 {
-								//It has another resources.
-								mappedResource.Kube.Ingresses = nil
-								mappedResource.Kube.Ingresses = newIngressSet
+					if isPresent {
+						if len(mappedResource.Kube.Services) > 0 || len(mappedResource.Kube.Deployments) > 0 || len(mappedResource.Kube.ReplicaSets) > 0 || len(mappedResource.Kube.Pods) > 0 || len(mappedResource.Kube.Ingresses) > 1 {
+							//It has another resources.
+							mappedResource.Kube.Ingresses = nil
+							mappedResource.Kube.Ingresses = newIngressSet
 
-								mapResults = append(mapResults,
-									MapResult{
-										Action:         "Updated",
-										Key:            namespaceKey,
-										IsMapped:       true,
-										MappedResource: mappedResource,
-										Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
-									},
-								)
-							} else {
-								mapResults = append(mapResults,
-									MapResult{
-										Action:         "Deleted",
-										Key:            namespaceKey,
-										IsMapped:       true,
-										CommonLabel:    mappedResource.CommonLabel,
-										MappedResource: mappedResource,
-										Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", ingress.Name, mappedResource.CommonLabel),
-									},
-								)
-							}
+							mapResults = append(mapResults,
+								MapResult{
+									Action:         "Updated",
+									Key:            namespaceKey,
+									IsMapped:       true,
+									MappedResource: mappedResource,
+									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", obj.Name, mappedResource.CommonLabel),
+								},
+							)
+						} else {
+							mapResults = append(mapResults,
+								MapResult{
+									Action:         "Deleted",
+									Key:            namespaceKey,
+									IsMapped:       true,
+									CommonLabel:    mappedResource.CommonLabel,
+									MappedResource: mappedResource,
+									Message:        fmt.Sprintf("Ingress %s deleted from Common Label %s", obj.Name, mappedResource.CommonLabel),
+								},
+							)
 						}
 					}
 				}
 			}
 		}
-		return mapResults, nil
 	}
-	return []MapResult{}, nil
+
+	//Update store right sway. Helps in B/G scenarios of ingress
+	updateStore(mapResults, store)
+
+	//Set IsStoreUpdated to true
+	for i := range mapResults {
+		mapResults[i].IsStoreUpdated = true
+	}
+
+	return mapResults, nil
 }
 
 func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKeys []string, store cache.Store) (MappedResource, []string) {
@@ -276,7 +333,8 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 			for _, ingressBackendService := range metaIdentifier.IngressIdentifier.IngressBackendServices {
 				if ingressBackendService == serviceName {
 					//This ingress belongs to this service. Add it
-					ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+					ingressMappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 					for _, loneIngress := range ingressMappedResource.Kube.Ingresses {
 						mappedResource.Kube.Ingresses = append(mappedResource.Kube.Ingresses, loneIngress)
 					}
@@ -289,7 +347,9 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 		//for _, ingressBackendService := range metaIdentifier.IngressIdentifier.IngressBackendServices {
 		//if ingressBackendService == serviceName {
 		//This ingress belongs to this service. Add it
-		ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+
+		// ingressMappedResource, _ := getObjectFromStore(namespaceKey, store)
+		ingressMappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 		for _, mappedIngress := range mappedResource.Kube.Ingresses {
 			for _, mappedIngressResource := range ingressMappedResource.Kube.Ingresses {
@@ -328,7 +388,9 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		service = *obj.Event.(*core_v1.Service).DeepCopy()
 
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -346,7 +408,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 				if reflect.DeepEqual(service.Spec.Selector, svcID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedService := range mappedResource.Kube.Services {
 						if mappedService.Name == service.Name {
@@ -372,7 +435,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				if reflect.DeepEqual(service.Spec.Selector, depID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedService := range mappedResource.Kube.Services {
 						if mappedService.Name == service.Name {
@@ -423,7 +487,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(service.Spec.Selector, serviceMatchedLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedService := range mappedResource.Kube.Services {
 						if mappedService.Name == service.Name {
@@ -473,7 +538,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(service.Spec.Selector, serviceMatchedLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedService := range mappedResource.Kube.Services {
 						if mappedService.Name == service.Name {
@@ -535,7 +601,9 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	//Handle Delete
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -553,7 +621,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, mappedSvcName := range metaIdentifier.ServicesIdentifier.Names {
 				if mappedSvcName == obj.Name {
 					//Pod is being deleted.
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					newSvcSet = nil
 					for _, mappedService := range mappedResource.Kube.Services {
@@ -599,7 +668,9 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		deployment = *obj.Event.(*apps_v1beta2.Deployment).DeepCopy()
 
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -617,7 +688,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, svcID := range metaIdentifier.ServicesIdentifier.MatchLabels {
 				if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, svcID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedDeployment := range mappedResource.Kube.Deployments {
 						if mappedDeployment.Name == deployment.Name {
@@ -648,7 +720,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, depID := range metaIdentifier.DeploymentsIdentifier.MatchLabels {
 				if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, depID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedDeployment := range mappedResource.Kube.Deployments {
 						if mappedDeployment.Name == deployment.Name {
@@ -671,7 +744,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				for _, ownerReference := range rsID.OwnerReferences {
 					if ownerReference == deployment.Name {
 						//Deployment and RS matches. Add deployment to this mapped resource
-						mappedResource, _ := getObjectFromStore(namespaceKey, store)
+						// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+						mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 						for i, mappedDeployment := range mappedResource.Kube.Deployments {
 							if mappedDeployment.Name == deployment.Name {
@@ -715,7 +789,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 				if reflect.DeepEqual(deployment.Spec.Selector.MatchLabels, podMatchedLabels) {
 					//Deployment and RS matches. Add deployment to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedDeployment := range mappedResource.Kube.Deployments {
 						if mappedDeployment.Name == deployment.Name {
@@ -764,7 +839,9 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	//Handle Delete
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -782,7 +859,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, mappedDepName := range metaIdentifier.DeploymentsIdentifier.Names {
 				if mappedDepName == obj.Name {
 					//Pod is being deleted.
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					newDepSet = nil
 					for _, mappedDeployment := range mappedResource.Kube.Deployments {
@@ -828,7 +906,9 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		pod = *obj.Event.(*core_v1.Pod).DeepCopy()
 
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -854,7 +934,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(podMatchedLabels, svcID) {
 					//Service and pod matches. Add pod to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedPod := range mappedResource.Kube.Pods {
 						if mappedPod.Name == pod.Name {
@@ -893,7 +974,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(podMatchedLabels, depID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedPod := range mappedResource.Kube.Pods {
 						if mappedPod.Name == pod.Name {
@@ -932,7 +1014,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(podMatchedLabels, rsID.MatchLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedPod := range mappedResource.Kube.Pods {
 						if mappedPod.Name == pod.Name {
@@ -963,7 +1046,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, podID := range metaIdentifier.PodsIdentifier {
 				if reflect.DeepEqual(pod.Labels, podID.MatchLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedPod := range mappedResource.Kube.Pods {
 						if mappedPod.Name == pod.Name {
@@ -1000,7 +1084,9 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	//Handle Delete
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -1018,7 +1104,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, podChileSet := range metaIdentifier.PodsIdentifier {
 				if podChileSet.Name == obj.Name {
 					//Pod is being deleted.
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					newPodSet = nil
 					for _, mappedPod := range mappedResource.Kube.Pods {
@@ -1064,7 +1151,9 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		replicaSet = *obj.Event.(*ext_v1beta1.ReplicaSet).DeepCopy()
 
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -1093,7 +1182,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					}
 					if reflect.DeepEqual(rsMatchedLabels, svcID) {
 						//Service and pod matches. Add pod to this mapped resource
-						mappedResource, _ := getObjectFromStore(namespaceKey, store)
+						// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+						mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 						for i, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
 							if mappedReplicaSet.Name == replicaSet.Name {
@@ -1110,6 +1200,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						}
 
 						mappedResource.Kube.ReplicaSets = append(mappedResource.Kube.ReplicaSets, replicaSet)
+
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -1133,7 +1224,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(rsMatchedLabels, depID) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
 						if mappedReplicaSet.Name == replicaSet.Name {
@@ -1164,7 +1256,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, rsID := range metaIdentifier.ReplicaSetsIdentifier {
 				if reflect.DeepEqual(replicaSet.Spec.Selector.MatchLabels, rsID.MatchLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
 						if mappedReplicaSet.Name == replicaSet.Name {
@@ -1194,7 +1287,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 				}
 				if reflect.DeepEqual(rsMatchedLabels, replicaSet.Spec.Selector.MatchLabels) {
 					//Service and deployment matches. Add service to this mapped resource
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					for i, mappedReplicaSet := range mappedResource.Kube.ReplicaSets {
 						if mappedReplicaSet.Name == replicaSet.Name {
@@ -1244,7 +1338,9 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	//Handle Delete
 	if obj.EventType == "DELETED" {
 		keys := store.ListKeys()
-		for _, key := range keys {
+		for _, b64Key := range keys {
+			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
+			key := fmt.Sprintf("%s", encodedKey)
 			if len(strings.Split(key, "$")) > 0 {
 				if strings.Split(key, "$")[0] == obj.Namespace {
 					namespaceKeys = append(namespaceKeys, key)
@@ -1262,7 +1358,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 			for _, rsChileSet := range metaIdentifier.ReplicaSetsIdentifier {
 				if rsChileSet.Name == obj.Name {
 					//Pod is being deleted.
-					mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					// mappedResource, _ := getObjectFromStore(namespaceKey, store)
+					mappedResource, _ := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(namespaceKey)), store)
 
 					newRsSet = nil
 					for _, mappedRs := range mappedResource.Kube.ReplicaSets {

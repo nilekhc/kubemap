@@ -1,6 +1,7 @@
 package kubemap
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -238,7 +239,9 @@ func updateStore(results []MapResult, store cache.Store) error {
 			case "Added", "Updated":
 				if result.Key != "" {
 					//Update object in store
-					existingMappedResource, err := getObjectFromStore(result.Key, store)
+					// existingMappedResource, err := getObjectFromStore(result.Key, store)
+					existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(result.Key)), store)
+
 					if err != nil {
 						return err
 					}
@@ -258,7 +261,8 @@ func updateStore(results []MapResult, store cache.Store) error {
 					//Needs to delete multiple resources
 					//Update object in store
 					for _, deleteKey := range result.DeleteKeys {
-						existingMappedResource, err := getObjectFromStore(deleteKey, store)
+						// existingMappedResource, err := getObjectFromStore(deleteKey, store)
+						existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(deleteKey)), store)
 						if err != nil {
 							return err
 						}
@@ -286,7 +290,8 @@ func updateStore(results []MapResult, store cache.Store) error {
 			case "Deleted":
 				if result.Key != "" {
 					//Get object from store
-					existingMappedResource, err := getObjectFromStore(result.Key, store)
+					// existingMappedResource, err := getObjectFromStore(result.Key, store)
+					existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(result.Key)), store)
 					if err != nil {
 						return err
 					}
