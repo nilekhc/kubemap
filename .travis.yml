@@ -1,6 +1,8 @@
 language: go
 
 go:
-- 1.x
+- 1.12.x
 
-script: go test -v ./...
+script:
+  - env GO111MODULE=on go test
+  - env GO111MODULE=on go build
