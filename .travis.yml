@@ -3,6 +3,8 @@ language: go
 go:
 - 1.12.x
 
+env:
+  - GO111MODULE=on
+
 script:
-  - env GO111MODULE=on go test
-  - env GO111MODULE=on go build
+  - go test
