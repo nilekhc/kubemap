@@ -84,8 +84,6 @@ func (m *Mapper) StoreMapObj(obj interface{}) ([]MapResult, error) {
 		return []MapResult{}, err
 	}
 
-	m.info("Mapping is successfull")
-
 	return mapResults, nil
 }
 
