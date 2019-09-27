@@ -24,7 +24,7 @@ func (m *Mapper) kubemapper(obj interface{}, store cache.Store) ([]MapResult, er
 
 	storeErr := m.updateStore(mappedResource, store)
 	if storeErr != nil {
-		m.warn(fmt.Sprintf("\nError while updating store - %v\n", storeErr))
+		m.warn(fmt.Sprintf("\nError while updating store - %v\nK8s Type - %s\n Name - %s\n Namespace - %s\n", storeErr, object.ResourceType, object.Name, object.Namespace))
 		return []MapResult{}, storeErr
 	}
 
@@ -643,7 +643,7 @@ func (m *Mapper) mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult,
 						mappedResource.Kube.Services = nil
 						mappedResource.Kube.Services = newSvcSet
 
-						m.info(fmt.Sprintf("\nDELETE Completed - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL updated.\n", obj.ResourceType, obj.Name, obj.Namespace))
+						m.info(fmt.Sprintf("\nDELETE Completed - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s updated.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -653,7 +653,7 @@ func (m *Mapper) mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult,
 						}, nil
 					}
 
-					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL deleted.\n", obj.ResourceType, obj.Name, obj.Namespace))
+					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s deleted.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -886,7 +886,7 @@ func (m *Mapper) mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResu
 						mappedResource.Kube.Deployments = nil
 						mappedResource.Kube.Deployments = newDepSet
 
-						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL updated.\n", obj.ResourceType, obj.Name, obj.Namespace))
+						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s updated.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -896,7 +896,7 @@ func (m *Mapper) mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResu
 						}, nil
 					}
 
-					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL deleted.\n", obj.ResourceType, obj.Name, obj.Namespace))
+					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s deleted.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -1136,7 +1136,7 @@ func (m *Mapper) mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, err
 						mappedResource.Kube.Pods = nil
 						mappedResource.Kube.Pods = newPodSet
 
-						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL updated.\n", obj.ResourceType, obj.Name, obj.Namespace))
+						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s updated.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -1146,7 +1146,7 @@ func (m *Mapper) mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, err
 						}, nil
 					}
 
-					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL deleted.\n", obj.ResourceType, obj.Name, obj.Namespace))
+					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s deleted.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -1395,7 +1395,7 @@ func (m *Mapper) mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResu
 						mappedResource.Kube.ReplicaSets = nil
 						mappedResource.Kube.ReplicaSets = newRsSet
 
-						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL updated.\n", obj.ResourceType, obj.Name, obj.Namespace))
+						m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s updated.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -1405,7 +1405,7 @@ func (m *Mapper) mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResu
 						}, nil
 					}
 
-					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL deleted.\n", obj.ResourceType, obj.Name, obj.Namespace))
+					m.info(fmt.Sprintf("\nDELETE Completed. - \n K8s Type - %s\n Name - %s\n Namespace - %s\nCL %s deleted.\n", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
