@@ -35,6 +35,22 @@ func TestNewMapper(t *testing.T) {
 	assert.NotNil(t, mappedResources)
 }
 
+func TestNewMapperWithOptions(t *testing.T) {
+	kubeResources := helperGetK8sResources()
+
+	mapper, _ := NewMapperWithOptions(MapOptions{
+		Logging: LoggingOptions{
+			Enabled:  true,
+			LogLevel: "debug",
+		},
+	})
+
+	assert.NotNil(t, mapper)
+
+	mappedResources, _ := mapper.Map(kubeResources)
+	assert.NotNil(t, mappedResources)
+}
+
 func helperGetK8sResources() KubeResources {
 	var kubeResources KubeResources
 

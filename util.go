@@ -237,7 +237,7 @@ func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
 	return MappedResource{}, fmt.Errorf("Object with key %s does not exist in store", key)
 }
 
-func updateStore(results []MapResult, store cache.Store) error {
+func (m *Mapper) updateStore(results []MapResult, store cache.Store) error {
 	for _, result := range results {
 		if result.IsMapped && !result.IsStoreUpdated {
 			switch result.Action {
