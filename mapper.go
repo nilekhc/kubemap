@@ -22,10 +22,17 @@ func (m *Mapper) kubemapper(obj interface{}, store cache.Store) ([]MapResult, er
 		return []MapResult{}, mapErr
 	}
 
+	if object.EventType == "DELETED" {
+		m.info(fmt.Sprintf("Updating store for incoming DELETE event with Resource %s", object.Name))
+	}
 	storeErr := m.updateStore(mappedResource, store)
 	if storeErr != nil {
 		m.warn(fmt.Sprintf("Error while updating store - %v K8s Type - %s Name - %s Namespace - %s", storeErr, object.ResourceType, object.Name, object.Namespace))
 		return []MapResult{}, storeErr
+	}
+
+	if object.EventType == "DELETED" {
+		m.info(fmt.Sprintf("Store updated successfully for incoming DELETE event with Resource %s", object.Name))
 	}
 
 	return mappedResource, nil
@@ -226,7 +233,7 @@ func (m *Mapper) addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1
 }
 
 func (m *Mapper) deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResult, error) {
-	m.info(fmt.Sprintf("\nDELETE received - \n K8s Type - %s\n Name - %s\n Namespace - %s\n", obj.ResourceType, obj.Name, obj.Namespace))
+	m.info(fmt.Sprintf("DELETE received - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
 
 	var ingressBackendServices, namespaceKeys []string
 	var mapResults []MapResult
