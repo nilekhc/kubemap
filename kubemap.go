@@ -1,6 +1,7 @@
 package kubemap
 
 import (
+	"fmt"
 	"log"
 
 	"k8s.io/client-go/tools/cache"
@@ -22,6 +23,26 @@ func NewMapper() *Mapper {
 	}
 }
 
+//NewMapperWithOptions creates a Mapper to map interlinked K8s resources with custom options
+func NewMapperWithOptions(options MapOptions) (*Mapper, error) {
+	store := cache.NewStore(metaResourceKeyFunc)
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
+	zapLogger, zapErr := getZapLogger(options.Logging.LogLevel)
+	if zapErr != nil {
+		return nil, zapErr
+	}
+
+	return &Mapper{
+		store: store,
+		queue: queue,
+		log: Logger{
+			enabled: options.Logging.Enabled,
+			logger:  zapLogger,
+		},
+	}, nil
+}
+
 //NewStoreMapper created a mapper that works with existing store.
 func NewStoreMapper(store cache.Store) *Mapper {
 	return &Mapper{
@@ -29,9 +50,25 @@ func NewStoreMapper(store cache.Store) *Mapper {
 	}
 }
 
+//NewStoreMapperWithOptions created a mapper that works with existing store.
+func NewStoreMapperWithOptions(store cache.Store, options MapOptions) (*Mapper, error) {
+	zapLogger, zapErr := getZapLogger(options.Logging.LogLevel)
+	if zapErr != nil {
+		return nil, zapErr
+	}
+
+	return &Mapper{
+		store: store,
+		log: Logger{
+			enabled: options.Logging.Enabled,
+			logger:  zapLogger,
+		},
+	}, nil
+}
+
 //StoreMap gets a resources and maps it with exiting resources in store
 func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
-	mapResults, err := kubemapper(obj, m.store)
+	mapResults, err := m.kubemapper(obj, m.store)
 	if err != nil {
 		return []MapResult{}, err
 	}
@@ -41,8 +78,9 @@ func (m *Mapper) StoreMap(obj interface{}) ([]MapResult, error) {
 
 //StoreMapObj gets a resources and maps it with exiting resources in store
 func (m *Mapper) StoreMapObj(obj interface{}) ([]MapResult, error) {
-	mapResults, err := kubemapper(obj, m.store)
+	mapResults, err := m.kubemapper(obj, m.store)
 	if err != nil {
+		m.error(fmt.Sprintf("Cannot map resources - %v", err))
 		return []MapResult{}, err
 	}
 
@@ -54,38 +92,38 @@ func (m *Mapper) StoreMapObj(obj interface{}) ([]MapResult, error) {
 func (m *Mapper) Map(resources KubeResources) (MappedResources, error) {
 	addResourcesForMapping(resources, m.queue)
 
-	mappedResources := runMap(m.queue, m.store)
+	mappedResources := m.runMap(m.queue, m.store)
 
 	return mappedResources, nil
 }
 
 //RunMap starts mapper controller
-func runMap(queue workqueue.RateLimitingInterface, store cache.Store) MappedResources {
+func (m *Mapper) runMap(queue workqueue.RateLimitingInterface, store cache.Store) MappedResources {
 	defer utilruntime.HandleCrash()
 	defer queue.ShutDown()
 
-	runMapWorker(queue, store)
+	m.runMapWorker(queue, store)
 
 	return getAllMappedResources(store)
 }
 
-func runMapWorker(queue workqueue.RateLimitingInterface, store cache.Store) {
+func (m *Mapper) runMapWorker(queue workqueue.RateLimitingInterface, store cache.Store) {
 	for { // Process until there are no messages in queue.
 		if queue.Len() > 0 {
-			processNextItemToMap(queue, store)
+			m.processNextItemToMap(queue, store)
 		} else {
 			break
 		}
 	}
 }
 
-func processNextItemToMap(queue workqueue.RateLimitingInterface, store cache.Store) bool {
+func (m *Mapper) processNextItemToMap(queue workqueue.RateLimitingInterface, store cache.Store) bool {
 	obj, quit := queue.Get()
 	if quit {
 		return false
 	}
 	defer queue.Done(obj)
-	err := processK8sItem(obj, store)
+	err := m.processK8sItem(obj, store)
 	if err == nil {
 		// No error, reset the ratelimit counters
 		queue.Forget(obj)
@@ -95,14 +133,17 @@ func processNextItemToMap(queue workqueue.RateLimitingInterface, store cache.Sto
 		// err != nil and too many retries
 		queue.Forget(obj)
 		utilruntime.HandleError(err)
+
+		m.warn(fmt.Sprintf("\nToo many retries. Forgetting message from queue.\n"))
 	}
 
 	return true
 }
 
-func processK8sItem(obj interface{}, store cache.Store) error {
-	_, err := kubemapper(obj, store)
+func (m *Mapper) processK8sItem(obj interface{}, store cache.Store) error {
+	_, err := m.kubemapper(obj, store)
 	if err != nil {
+		m.error(fmt.Sprintf("\nCannot map resources - %v\n", err))
 		return err
 	}
 

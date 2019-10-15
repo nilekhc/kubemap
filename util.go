@@ -237,7 +237,7 @@ func getObjectFromStore(key string, store cache.Store) (MappedResource, error) {
 	return MappedResource{}, fmt.Errorf("Object with key %s does not exist in store", key)
 }
 
-func updateStore(results []MapResult, store cache.Store) error {
+func (m *Mapper) updateStore(results []MapResult, store cache.Store) error {
 	for _, result := range results {
 		if result.IsMapped && !result.IsStoreUpdated {
 			switch result.Action {
@@ -248,18 +248,21 @@ func updateStore(results []MapResult, store cache.Store) error {
 					existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(result.Key)), store)
 
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while getting object from store - %v Key - %s", err, result.Key))
 						return err
 					}
 
 					//Delete exiting resource from store
 					err = store.Delete(existingMappedResource)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while deleting object from store - %v Key - %s", err, result.Key))
 						return err
 					}
 
 					//Add new mapped resource to store
 					err = store.Add(result.MappedResource)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while adding object from store - %v Key - %s", err, result.Key))
 						return err
 					}
 				} else if len(result.DeleteKeys) > 0 {
@@ -269,12 +272,14 @@ func updateStore(results []MapResult, store cache.Store) error {
 						// existingMappedResource, err := getObjectFromStore(deleteKey, store)
 						existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(deleteKey)), store)
 						if err != nil {
+							m.warn(fmt.Sprintf("Error while getting object from store - %v Key - %s", err, result.Key))
 							return err
 						}
 
 						//Delete exiting resource from store
 						err = store.Delete(existingMappedResource)
 						if err != nil {
+							m.warn(fmt.Sprintf("Error while deleting object from store - %v Key - %s", err, result.Key))
 							return err
 						}
 					}
@@ -282,6 +287,7 @@ func updateStore(results []MapResult, store cache.Store) error {
 					//Add new mapped resource to store
 					err := store.Add(result.MappedResource)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while adding object to store - %v Key - %s", err, result.Key))
 						return err
 					}
 				} else {
@@ -289,6 +295,7 @@ func updateStore(results []MapResult, store cache.Store) error {
 					//Add new individual mapped resource to store
 					err := store.Add(result.MappedResource)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while adding newly mapped object to store - %v Key - %s", err, result.Key))
 						return err
 					}
 				}
@@ -298,14 +305,18 @@ func updateStore(results []MapResult, store cache.Store) error {
 					// existingMappedResource, err := getObjectFromStore(result.Key, store)
 					existingMappedResource, err := getObjectFromStore(base64.StdEncoding.EncodeToString([]byte(result.Key)), store)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while getting object from store - %v Key - %s", err, result.Key))
 						return err
 					}
 
 					//Delete existing resource from store
 					err = store.Delete(existingMappedResource)
 					if err != nil {
+						m.warn(fmt.Sprintf("Error while deleting object from store - %v Key - %s", err, result.Key))
 						return err
 					}
+
+					m.info(fmt.Sprintf("Object %s with key %s deleted from store", existingMappedResource.CommonLabel, result.Key))
 				}
 			}
 		}

@@ -1,6 +1,7 @@
 package kubemap
 
 import (
+	"go.uber.org/zap"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	core_v1 "k8s.io/api/core/v1"
 	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
@@ -46,6 +47,7 @@ type MappedResources struct {
 type Mapper struct {
 	queue workqueue.RateLimitingInterface
 	store cache.Store
+	log   Logger
 }
 
 //ResourceEvent ...
@@ -97,4 +99,22 @@ type ChildSet struct {
 	Name            string            `json:"name,omitempty"`
 	OwnerReferences []string          `json:"ownerReferences,omitempty"`
 	MatchLabels     map[string]string `json:"matchLabels,omitempty"`
+}
+
+//MapOptions allows to instantiate new Mapper with custom options
+type MapOptions struct {
+	Logging LoggingOptions
+}
+
+//LoggingOptions ...
+type LoggingOptions struct {
+	Enabled bool
+	//LogLevel sets type of logs viz 'info' or 'debug'.
+	LogLevel string
+}
+
+//Logger ...
+type Logger struct {
+	enabled bool
+	logger  *zap.SugaredLogger
 }

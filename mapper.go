@@ -13,33 +13,42 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func kubemapper(obj interface{}, store cache.Store) ([]MapResult, error) {
+func (m *Mapper) kubemapper(obj interface{}, store cache.Store) ([]MapResult, error) {
 	object := obj.(ResourceEvent)
+	m.debug(fmt.Sprintf("Processing object - K8s Type - %s Name - %s Namespace - %s", object.ResourceType, object.Name, object.Namespace))
 
-	mappedResource, mapErr := resourceMapper(object, store)
+	mappedResource, mapErr := m.resourceMapper(object, store)
 	if mapErr != nil {
 		return []MapResult{}, mapErr
 	}
 
-	storeErr := updateStore(mappedResource, store)
+	if object.EventType == "DELETED" {
+		m.info(fmt.Sprintf("Updating store for incoming DELETE event with Resource %s", object.Name))
+	}
+	storeErr := m.updateStore(mappedResource, store)
 	if storeErr != nil {
+		m.warn(fmt.Sprintf("Error while updating store - %v K8s Type - %s Name - %s Namespace - %s", storeErr, object.ResourceType, object.Name, object.Namespace))
 		return []MapResult{}, storeErr
+	}
+
+	if object.EventType == "DELETED" {
+		m.info(fmt.Sprintf("Store updated successfully for incoming DELETE event with Resource %s", object.Name))
 	}
 
 	return mappedResource, nil
 }
 
-func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
+func (m *Mapper) resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	switch obj.ResourceType {
 	case "ingress":
-		mappedIngress, err := mapIngressObj(obj, store)
+		mappedIngress, err := m.mapIngressObj(obj, store)
 		if err != nil {
 			return []MapResult{}, err
 		}
 
 		return mappedIngress, nil
 	case "service":
-		mappedService, err := mapServiceObj(obj, store)
+		mappedService, err := m.mapServiceObj(obj, store)
 		if err != nil {
 			return []MapResult{}, err
 		}
@@ -48,7 +57,7 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mappedService,
 		}, nil
 	case "deployment":
-		mappedDeployment, err := mapDeploymentObj(obj, store)
+		mappedDeployment, err := m.mapDeploymentObj(obj, store)
 		if err != nil {
 			return []MapResult{}, err
 		}
@@ -57,7 +66,7 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mappedDeployment,
 		}, nil
 	case "replicaset":
-		mappedReplicaSet, err := mapReplicaSetObj(obj, store)
+		mappedReplicaSet, err := m.mapReplicaSetObj(obj, store)
 		if err != nil {
 			return []MapResult{}, err
 		}
@@ -66,7 +75,7 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 			mappedReplicaSet,
 		}, nil
 	case "pod":
-		mappedPod, err := mapPodObj(obj, store)
+		mappedPod, err := m.mapPodObj(obj, store)
 		if err != nil {
 			return []MapResult{}, err
 		}
@@ -79,7 +88,7 @@ func resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	return []MapResult{}, fmt.Errorf("Resource type '%s' is not supported for mapping", obj.ResourceType)
 }
 
-func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
+func (m *Mapper) mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 	var ingress ext_v1beta1.Ingress
 	var ingressBackendServices []string
 
@@ -99,16 +108,16 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 		ingressBackendServices = removeDuplicateStrings(ingressBackendServices)
 
 		if obj.EventType == "ADDED" {
-			return addIngress(store, obj, ingress, ingressBackendServices)
+			return m.addIngress(store, obj, ingress, ingressBackendServices)
 		} else if obj.EventType == "UPDATED" {
 			mapResults := []MapResult{}
 
-			deleteResults, delErr := deleteIngress(store, obj)
+			deleteResults, delErr := m.deleteIngress(store, obj)
 			if delErr != nil {
 				return []MapResult{}, delErr
 			}
 
-			addResults, addErr := addIngress(store, obj, ingress, ingressBackendServices)
+			addResults, addErr := m.addIngress(store, obj, ingress, ingressBackendServices)
 			if addErr != nil {
 				return []MapResult{}, addErr
 			}
@@ -122,12 +131,12 @@ func mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
-		return deleteIngress(store, obj)
+		return m.deleteIngress(store, obj)
 	}
 	return []MapResult{}, nil
 }
 
-func addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingress, ingressBackendServices []string) ([]MapResult, error) {
+func (m *Mapper) addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingress, ingressBackendServices []string) ([]MapResult, error) {
 	var mapResults []MapResult
 	var namespaceKeys []string
 
@@ -213,7 +222,7 @@ func addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingres
 	}
 
 	//Update store right sway. Helps in B/G scenarios of ingress
-	updateStore(mapResults, store)
+	m.updateStore(mapResults, store)
 
 	//Set IsStoreUpdated to true
 	for i := range mapResults {
@@ -223,7 +232,9 @@ func addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingres
 	return mapResults, nil
 }
 
-func deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResult, error) {
+func (m *Mapper) deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResult, error) {
+	m.info(fmt.Sprintf("DELETE received - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
+
 	var ingressBackendServices, namespaceKeys []string
 	var mapResults []MapResult
 
@@ -311,17 +322,18 @@ func deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResult, error) {
 	}
 
 	//Update store right sway. Helps in B/G scenarios of ingress
-	updateStore(mapResults, store)
+	m.updateStore(mapResults, store)
 
 	//Set IsStoreUpdated to true
 	for i := range mapResults {
 		mapResults[i].IsStoreUpdated = true
 	}
 
+	m.info(fmt.Sprintf("DELETE Completed - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
 	return mapResults, nil
 }
 
-func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKeys []string, store cache.Store) (MappedResource, []string) {
+func (m *Mapper) ingressCheck(mappedResource MappedResource, serviceName string, namespaceKeys []string, store cache.Store) (MappedResource, []string) {
 	var oldIngressDeleteKeys []string
 	for _, namespaceKey := range namespaceKeys {
 		metaIdentifierString := strings.Split(namespaceKey, "$")[1]
@@ -380,7 +392,7 @@ func ingressCheck(mappedResource MappedResource, serviceName string, namespaceKe
 	return mappedResource, oldIngressDeleteKeys
 }
 
-func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+func (m *Mapper) mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var service core_v1.Service
 	var namespaceKeys []string
 
@@ -415,7 +427,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
-							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 							deleteKeys = append(deleteKeys, namespaceKey)
 							deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -442,7 +454,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
-							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 							deleteKeys = append(deleteKeys, namespaceKey)
 							deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -461,7 +473,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						mappedResource.CommonLabel = service.Name
 					}
 
-					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 					deleteKeys = append(deleteKeys, namespaceKey)
 					deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -494,7 +506,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
-							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 							deleteKeys = append(deleteKeys, namespaceKey)
 							deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -512,7 +524,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
 						mappedResource.CommonLabel = service.Name
 					}
-					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 					deleteKeys = append(deleteKeys, namespaceKey)
 					deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -545,7 +557,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						if mappedService.Name == service.Name {
 							mappedResource.Kube.Services[i] = service
 
-							newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+							newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 							deleteKeys = append(deleteKeys, namespaceKey)
 							deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -563,7 +575,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 					if len(mappedResource.Kube.Services) < 2 { //Set Common Label to service name.
 						mappedResource.CommonLabel = service.Name
 					}
-					newMappedResource, deleteKeys := ingressCheck(mappedResource, service.Name, namespaceKeys, store)
+					newMappedResource, deleteKeys := m.ingressCheck(mappedResource, service.Name, namespaceKeys, store)
 					deleteKeys = append(deleteKeys, namespaceKey)
 					deleteKeys = removeDuplicateStrings(deleteKeys)
 
@@ -586,7 +598,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 		newMappedService.Namespace = service.Namespace
 		newMappedService.Kube.Services = append(newMappedService.Kube.Services, service)
 
-		newMappedResourceWithIngress, deleteKeys := ingressCheck(newMappedService, service.Name, namespaceKeys, store)
+		newMappedResourceWithIngress, deleteKeys := m.ingressCheck(newMappedService, service.Name, namespaceKeys, store)
 		deleteKeys = removeDuplicateStrings(deleteKeys)
 
 		return MapResult{
@@ -600,6 +612,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
+		m.info(fmt.Sprintf("DELETE received - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
+
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
 			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
@@ -636,6 +650,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						mappedResource.Kube.Services = nil
 						mappedResource.Kube.Services = newSvcSet
 
+						m.info(fmt.Sprintf("DELETE Completed - K8s Type - %s Name - %s Namespace - %s CL %s updated.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -644,6 +659,8 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Message:        fmt.Sprintf("Service %s is deleted from Common Label %s", service.Name, mappedResource.CommonLabel),
 						}, nil
 					}
+
+					m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s deleted.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -660,7 +677,7 @@ func mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	return MapResult{}, nil
 }
 
-func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+func (m *Mapper) mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var deployment apps_v1beta2.Deployment
 	var namespaceKeys []string
 
@@ -838,6 +855,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
+		m.info(fmt.Sprintf("DELETE received. - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
+
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
 			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
@@ -874,6 +893,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						mappedResource.Kube.Deployments = nil
 						mappedResource.Kube.Deployments = newDepSet
 
+						m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s updated.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -882,6 +902,8 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Message:        fmt.Sprintf("Deployment %s is deleted from Common Label %s", deployment.Name, mappedResource.CommonLabel),
 						}, nil
 					}
+
+					m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s deleted.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -898,7 +920,7 @@ func mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	return MapResult{}, nil
 }
 
-func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+func (m *Mapper) mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var pod core_v1.Pod
 	var namespaceKeys []string
 
@@ -1083,6 +1105,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
+		m.info(fmt.Sprintf("DELETE received. - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
+
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
 			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
@@ -1119,6 +1143,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						mappedResource.Kube.Pods = nil
 						mappedResource.Kube.Pods = newPodSet
 
+						m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s updated.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -1127,6 +1152,8 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Message:        fmt.Sprintf("Pod %s is deleted from Common Label %s", pod.Name, mappedResource.CommonLabel),
 						}, nil
 					}
+
+					m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s deleted.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
@@ -1143,7 +1170,7 @@ func mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	return MapResult{}, nil
 }
 
-func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
+func (m *Mapper) mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 	var replicaSet ext_v1beta1.ReplicaSet
 	var namespaceKeys []string
 
@@ -1337,6 +1364,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 
 	//Handle Delete
 	if obj.EventType == "DELETED" {
+		m.info(fmt.Sprintf("DELETE received. - K8s Type - %s Name - %s Namespace - %s", obj.ResourceType, obj.Name, obj.Namespace))
+
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
 			encodedKey, _ := base64.StdEncoding.DecodeString(b64Key)
@@ -1373,6 +1402,7 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 						mappedResource.Kube.ReplicaSets = nil
 						mappedResource.Kube.ReplicaSets = newRsSet
 
+						m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s updated.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 						return MapResult{
 							Action:         "Updated",
 							Key:            namespaceKey,
@@ -1381,6 +1411,8 @@ func mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
 							Message:        fmt.Sprintf("Replica set %s is deleted from Common Label %s", replicaSet.Name, mappedResource.CommonLabel),
 						}, nil
 					}
+
+					m.info(fmt.Sprintf("DELETE Completed. - K8s Type - %s Name - %s Namespace - %s CL %s deleted.", obj.ResourceType, obj.Name, obj.Namespace, mappedResource.CommonLabel))
 					return MapResult{
 						Action:         "Deleted",
 						Key:            namespaceKey,
