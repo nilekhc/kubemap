@@ -7,9 +7,9 @@ import (
 	"reflect"
 	"strings"
 
-	apps_v1beta2 "k8s.io/api/apps/v1beta2"
+	apps_v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
-	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
+	network_v1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -89,11 +89,11 @@ func (m *Mapper) resourceMapper(obj ResourceEvent, store cache.Store) ([]MapResu
 }
 
 func (m *Mapper) mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResult, error) {
-	var ingress ext_v1beta1.Ingress
+	var ingress network_v1beta1.Ingress
 	var ingressBackendServices []string
 
 	if obj.Event != nil {
-		ingress = *obj.Event.(*ext_v1beta1.Ingress).DeepCopy()
+		ingress = *obj.Event.(*network_v1beta1.Ingress).DeepCopy()
 		//Get all services from ingress rules
 		for _, ingressRule := range ingress.Spec.Rules {
 			if ingressRule.IngressRuleValue.HTTP != nil {
@@ -136,7 +136,7 @@ func (m *Mapper) mapIngressObj(obj ResourceEvent, store cache.Store) ([]MapResul
 	return []MapResult{}, nil
 }
 
-func (m *Mapper) addIngress(store cache.Store, obj ResourceEvent, ingress ext_v1beta1.Ingress, ingressBackendServices []string) ([]MapResult, error) {
+func (m *Mapper) addIngress(store cache.Store, obj ResourceEvent, ingress network_v1beta1.Ingress, ingressBackendServices []string) ([]MapResult, error) {
 	var mapResults []MapResult
 	var namespaceKeys []string
 
@@ -271,7 +271,7 @@ func (m *Mapper) deleteIngress(store cache.Store, obj ResourceEvent) ([]MapResul
 
 			json.Unmarshal([]byte(metaIdentifierString), &metaIdentifier)
 
-			var newIngressSet []ext_v1beta1.Ingress
+			var newIngressSet []network_v1beta1.Ingress
 			for _, serviceName := range metaIdentifier.ServicesIdentifier.Names {
 				if serviceName == ingressBackendService {
 					//Services matched. See if ingress is present. If it is, then delete it.
@@ -678,11 +678,11 @@ func (m *Mapper) mapServiceObj(obj ResourceEvent, store cache.Store) (MapResult,
 }
 
 func (m *Mapper) mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
-	var deployment apps_v1beta2.Deployment
+	var deployment apps_v1.Deployment
 	var namespaceKeys []string
 
 	if obj.Event != nil {
-		deployment = *obj.Event.(*apps_v1beta2.Deployment).DeepCopy()
+		deployment = *obj.Event.(*apps_v1.Deployment).DeepCopy()
 
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
@@ -868,7 +868,7 @@ func (m *Mapper) mapDeploymentObj(obj ResourceEvent, store cache.Store) (MapResu
 			}
 		}
 
-		var newDepSet []apps_v1beta2.Deployment
+		var newDepSet []apps_v1.Deployment
 		for _, namespaceKey := range namespaceKeys {
 			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
@@ -1171,11 +1171,11 @@ func (m *Mapper) mapPodObj(obj ResourceEvent, store cache.Store) (MapResult, err
 }
 
 func (m *Mapper) mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResult, error) {
-	var replicaSet ext_v1beta1.ReplicaSet
+	var replicaSet apps_v1.ReplicaSet
 	var namespaceKeys []string
 
 	if obj.Event != nil {
-		replicaSet = *obj.Event.(*ext_v1beta1.ReplicaSet).DeepCopy()
+		replicaSet = *obj.Event.(*apps_v1.ReplicaSet).DeepCopy()
 
 		keys := store.ListKeys()
 		for _, b64Key := range keys {
@@ -1377,7 +1377,7 @@ func (m *Mapper) mapReplicaSetObj(obj ResourceEvent, store cache.Store) (MapResu
 			}
 		}
 
-		var newRsSet []ext_v1beta1.ReplicaSet
+		var newRsSet []apps_v1.ReplicaSet
 		for _, namespaceKey := range namespaceKeys {
 			metaIdentifierString := strings.Split(namespaceKey, "$")[1]
 			metaIdentifier := MetaIdentifier{}
