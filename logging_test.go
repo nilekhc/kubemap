@@ -17,14 +17,21 @@ func TestGetZapLogger(t *testing.T) {
 		"With_INFO_Log_Level": {
 			logLevel: "info",
 		},
+		"With_NonSupported_Log_Level": {
+			logLevel: "NonSupported",
+		},
 	}
 
 	for testName, test := range getZapLoggerTests {
 		t.Run(testName, func(t *testing.T) {
 			logger, logErr := getZapLogger(test.logLevel)
-
-			assert.NotNil(t, logger)
-			assert.Nil(t, logErr)
+			if test.logLevel != "NonSupported" {
+				assert.NotNil(t, logger)
+				assert.Nil(t, logErr)
+			} else {
+				assert.Nil(t, logger)
+				assert.NotNil(t, logErr)
+			}
 		})
 	}
 }
