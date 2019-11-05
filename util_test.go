@@ -7,8 +7,7 @@ import (
 )
 
 func TestCopyMappedResource(t *testing.T) {
-	kubeResources := helperGetK8sResources()
-
+	kubeResources := getLegacyTestResources()
 	mapper, _ := NewMapperWithOptions(MapOptions{
 		Logging: LoggingOptions{
 			Enabled:  false,

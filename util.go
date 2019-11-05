@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	apps_v1beta1 "k8s.io/api/apps/v1beta1"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
@@ -322,4 +323,25 @@ func (m *Mapper) updateStore(results []MapResult, store cache.Store) error {
 		}
 	}
 	return nil
+}
+
+func gerResourceEvent(obj interface{}, resourceType string) ResourceEvent {
+	var newResourceEvent ResourceEvent
+	var err error
+
+	objMeta := objectMetaData(obj)
+	newResourceEvent.UID = string(objMeta.UID)
+	newResourceEvent.Key, err = cache.MetaNamespaceKeyFunc(obj)
+	newResourceEvent.EventType = "ADDED"
+	newResourceEvent.ResourceType = resourceType
+	newResourceEvent.Namespace = objMeta.Namespace
+	newResourceEvent.Name = objMeta.Name
+	newResourceEvent.Event = obj
+	//newResourceEvent.RawObj = obj
+
+	if err != nil {
+		log.Fatalf("Can't get key for store")
+	}
+
+	return newResourceEvent
 }

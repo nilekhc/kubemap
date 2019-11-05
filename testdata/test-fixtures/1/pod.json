@@ -1,0 +1,82 @@
+{
+    "apiVersion": "v1",
+    "kind": "Pod",
+    "metadata": {
+        "generateName": "kube-map-644c5c58fc-",
+        "labels": {
+            "test": "map",
+            "pod-template-hash": "644c5c58fc"
+        },
+        "name": "kube-map-pod-1-644c5c58fc-ggdmn",
+        "ownerReferences": [
+            {
+                "apiVersion": "apps/v1",
+                "blockOwnerDeletion": true,
+                "controller": true,
+                "kind": "ReplicaSet",
+                "name": "kube-map-replicaset-1-644c5c58fc"
+            }
+        ]
+    },
+    "spec": {
+        "containers": [
+            {
+                "image": "some/random/image",
+                "imagePullPolicy": "Always",
+                "livenessProbe": {
+                    "failureThreshold": 10,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "admin",
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 15,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 30
+                },
+                "name": "kube-map",
+                "ports": [
+                    {
+                        "containerPort": 8085,
+                        "name": "admin",
+                        "protocol": "TCP"
+                    }
+                ],
+                "readinessProbe": {
+                    "failureThreshold": 10,
+                    "httpGet": {
+                        "path": "/health",
+                        "port": "admin",
+                        "scheme": "HTTP"
+                    },
+                    "initialDelaySeconds": 30,
+                    "periodSeconds": 15,
+                    "successThreshold": 1,
+                    "timeoutSeconds": 30
+                },
+                "resources": {
+                    "limits": {
+                        "cpu": "1",
+                        "memory": "1Gi"
+                    },
+                    "requests": {
+                        "cpu": "500m",
+                        "memory": "256Mi"
+                    }
+                },
+                "terminationMessagePath": "/dev/termination-log",
+                "terminationMessagePolicy": "File"
+            }
+        ],
+        "dnsPolicy": "ClusterFirst",
+        "enableServiceLinks": true,
+        "priority": 0,
+        "restartPolicy": "Always",
+        "schedulerName": "default-scheduler",
+        "securityContext": {},
+        "serviceAccount": "default",
+        "serviceAccountName": "default",
+        "terminationGracePeriodSeconds": 30
+    }
+}

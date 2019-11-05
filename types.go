@@ -118,3 +118,18 @@ type Logger struct {
 	enabled bool
 	logger  *zap.SugaredLogger
 }
+
+//Options allows to instantiate new Mapper with custom options
+type Options struct {
+	Logging *LoggingOptions
+	Store   cache.Store
+}
+
+//K8sResources for mapping
+type K8sResources struct {
+	Ingresses   []interface{}
+	Services    []interface{}
+	Deployments []interface{}
+	ReplicaSets []interface{}
+	Pods        []interface{}
+}

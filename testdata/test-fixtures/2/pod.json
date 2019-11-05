@@ -7,16 +7,14 @@
             "test": "map",
             "pod-template-hash": "644c5c58fc"
         },
-        "name": "kube-map-644c5c58fc-ggdmn",
-        "namespace": "test-namespace",
+        "name": "kube-map-pod-2-644c5c58fc-ggdmn",
         "ownerReferences": [
             {
                 "apiVersion": "apps/v1",
                 "blockOwnerDeletion": true,
                 "controller": true,
                 "kind": "ReplicaSet",
-                "name": "kube-map-644c5c58fc",
-                "uid": "c9309d2e-6b7b-11e9-9677-024ebf7005c2"
+                "name": "kube-map-replicaset-2-644c5c58fc"
             }
         ]
     },

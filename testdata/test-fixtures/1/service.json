@@ -1,0 +1,26 @@
+{
+    "apiVersion": "v1",
+    "kind": "Service",
+    "metadata": {
+        "labels": {
+            "test": "map",
+            "transit": "http"
+        },
+        "name": "kube-map-service-1"
+    },
+    "spec": {
+        "ports": [
+            {
+                "name": "admin",
+                "port": 8085,
+                "protocol": "TCP",
+                "targetPort": 8085
+            }
+        ],
+        "selector": {
+            "test": "map"
+        },
+        "sessionAffinity": "None",
+        "type": "ClusterIP"
+    }
+}

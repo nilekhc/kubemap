@@ -6,8 +6,7 @@
             "test": "map",
             "transit": "http"
         },
-        "name": "kube-map",
-        "namespace": "test-namespace"
+        "name": "kube-map-service-2"
     },
     "spec": {
         "ports": [

@@ -1,0 +1,29 @@
+{
+    "apiVersion": "extensions/v1beta1",
+    "kind": "Ingress",
+    "metadata": {
+        "labels": {
+            "dnshost": "some.dns.somecompany.com",
+            "transit": "http"
+        },
+        "name": "kube-map-ingress-1"
+    },
+    "spec": {
+        "rules": [
+            {
+                "host": "some.dns.somecompany.com",
+                "http": {
+                    "paths": [
+                        {
+                            "backend": {
+                                "serviceName": "kube-map-service-1",
+                                "servicePort": "admin"
+                            },
+                            "path": "/"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}

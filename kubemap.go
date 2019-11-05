@@ -2,7 +2,6 @@ package kubemap
 
 import (
 	"fmt"
-	"log"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -187,25 +186,4 @@ func addResourcesForMapping(resources KubeResources, queue workqueue.RateLimitin
 	for _, pod := range resources.Pods {
 		queue.Add(gerResourceEvent(pod.DeepCopy(), "pod"))
 	}
-}
-
-func gerResourceEvent(obj interface{}, resourceType string) ResourceEvent {
-	var newResourceEvent ResourceEvent
-	var err error
-
-	objMeta := objectMetaData(obj)
-	newResourceEvent.UID = string(objMeta.UID)
-	newResourceEvent.Key, err = cache.MetaNamespaceKeyFunc(obj)
-	newResourceEvent.EventType = "ADDED"
-	newResourceEvent.ResourceType = resourceType
-	newResourceEvent.Namespace = objMeta.Namespace
-	newResourceEvent.Name = objMeta.Name
-	newResourceEvent.Event = obj
-	//newResourceEvent.RawObj = obj
-
-	if err != nil {
-		log.Fatalf("Can't get key for store")
-	}
-
-	return newResourceEvent
 }

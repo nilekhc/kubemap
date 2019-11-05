@@ -1,13 +1,12 @@
 {
-    "apiVersion": "extensions/v1beta1",
+    "apiVersion": "networking.k8s.io/v1beta1",
     "kind": "Ingress",
     "metadata": {
         "labels": {
             "dnshost": "some.dns.somecompany.com",
             "transit": "http"
         },
-        "name": "kube-map",
-        "namespace": "test-namespace"
+        "name": "kube-map-ingress-2"
     },
     "spec": {
         "rules": [
@@ -17,7 +16,7 @@
                     "paths": [
                         {
                             "backend": {
-                                "serviceName": "kube-map",
+                                "serviceName": "kube-map-service-2",
                                 "servicePort": "admin"
                             },
                             "path": "/"
