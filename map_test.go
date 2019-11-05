@@ -32,8 +32,9 @@ func TestAddK8sResourcesForMapping(t *testing.T) {
 
 func TestNewK8sMapper(t *testing.T) {
 	newMapperTests := map[string]struct {
-		options      *Options
-		isLogEnabled bool
+		options       *Options
+		isLogEnabled  bool
+		isMapperError bool
 	}{
 		"Without_Options": {
 			options:      nil,
@@ -47,6 +48,16 @@ func TestNewK8sMapper(t *testing.T) {
 				},
 			},
 			isLogEnabled: true,
+		},
+		"With_Error_Log_Options": {
+			options: &Options{
+				Logging: &LoggingOptions{
+					Enabled:  true,
+					LogLevel: "fatal",
+				},
+			},
+			isLogEnabled:  true,
+			isMapperError: true,
 		},
 		"With_Store_Options": {
 			options: &Options{
@@ -70,17 +81,21 @@ func TestNewK8sMapper(t *testing.T) {
 		t.Run(testName, func(t *testing.T) {
 			mapper, err := NewK8sMapper(test.options)
 
-			assert.Nil(t, err)
-
-			assert.Equal(t, test.isLogEnabled, mapper.log.enabled)
-			if test.isLogEnabled {
-				assert.NotNil(t, mapper.log.logger)
+			if test.isMapperError {
+				assert.Error(t, err)
 			} else {
-				assert.Nil(t, mapper.log.logger)
-			}
+				assert.Nil(t, err)
 
-			assert.NotNil(t, mapper.queue)
-			assert.NotNil(t, mapper.store)
+				assert.Equal(t, test.isLogEnabled, mapper.log.enabled)
+				if test.isLogEnabled {
+					assert.NotNil(t, mapper.log.logger)
+				} else {
+					assert.Nil(t, mapper.log.logger)
+				}
+
+				assert.NotNil(t, mapper.queue)
+				assert.NotNil(t, mapper.store)
+			}
 		})
 	}
 }
