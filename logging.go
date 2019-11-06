@@ -32,15 +32,8 @@ func (m *Mapper) error(msg string) {
 	}
 }
 
-func (m *Mapper) fatal(msg string) {
-	if m.log.enabled {
-		m.log.logger.Fatal(msg)
-	}
-}
-
 func getZapLogger(logLevel string) (*zap.SugaredLogger, error) {
 	//zap config
-	zap.NewProduction()
 	zapConfig := zap.NewDevelopmentConfig()
 
 	if logLevel != "" {
@@ -49,9 +42,21 @@ func getZapLogger(logLevel string) (*zap.SugaredLogger, error) {
 			zapConfig.Level = zap.NewAtomicLevelAt(zapcore.InfoLevel)
 		case "debug":
 			zapConfig.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
+		case "warn":
+			zapConfig.Level = zap.NewAtomicLevelAt(zapcore.WarnLevel)
+		case "error":
+			zapConfig.Level = zap.NewAtomicLevelAt(zapcore.ErrorLevel)
 		default:
 			return nil, fmt.Errorf("Cannot instantiate Mapper. Invalid Log level %s provided. Accepted values are 'info' & 'debug'", logLevel)
 		}
+	}
+
+	for i := range zapConfig.OutputPaths {
+		zapConfig.OutputPaths[i] = "stdout"
+	}
+
+	for i := range zapConfig.ErrorOutputPaths {
+		zapConfig.ErrorOutputPaths[i] = "stdout"
 	}
 
 	logger, _ := zapConfig.Build()
