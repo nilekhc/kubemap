@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 
+	apps_v1 "k8s.io/api/apps/v1"
 	apps_v1beta1 "k8s.io/api/apps/v1beta1"
 	apps_v1beta2 "k8s.io/api/apps/v1beta2"
 	autoscaling_v1 "k8s.io/api/autoscaling/v1"
 	batch_v1 "k8s.io/api/batch/v1"
 	core_v1 "k8s.io/api/core/v1"
 	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
+	network_v1beta1 "k8s.io/api/networking/v1beta1"
 	meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -24,9 +26,13 @@ func objectMetaData(obj interface{}) meta_v1.ObjectMeta {
 	// 	return object.ObjectMeta
 	case *apps_v1beta2.Deployment:
 		return object.ObjectMeta
+	case *apps_v1.Deployment:
+		return object.ObjectMeta
 	case *core_v1.ReplicationController:
 		return object.ObjectMeta
 	case *ext_v1beta1.ReplicaSet:
+		return object.ObjectMeta
+	case *apps_v1.ReplicaSet:
 		return object.ObjectMeta
 	case *apps_v1beta1.StatefulSet:
 		return object.ObjectMeta
@@ -47,6 +53,8 @@ func objectMetaData(obj interface{}) meta_v1.ObjectMeta {
 	case *core_v1.Secret:
 		return object.ObjectMeta
 	case *ext_v1beta1.Ingress:
+		return object.ObjectMeta
+	case *network_v1beta1.Ingress:
 		return object.ObjectMeta
 	case *core_v1.Event:
 		return object.ObjectMeta
