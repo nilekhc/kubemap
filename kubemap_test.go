@@ -8,9 +8,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	apps_v1beta2 "k8s.io/api/apps/v1beta2"
+	apps_v1 "k8s.io/api/apps/v1"
 	core_v1 "k8s.io/api/core/v1"
-	ext_v1beta1 "k8s.io/api/extensions/v1beta1"
+	network_v1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/client-go/util/workqueue"
 )
 
@@ -55,7 +55,7 @@ func helperGetK8sResources() KubeResources {
 	var kubeResources KubeResources
 
 	//Get Ingress
-	var ingress ext_v1beta1.Ingress
+	var ingress network_v1beta1.Ingress
 	ingressContent := helperGetFileContent("ingress.json")
 	json.Unmarshal(ingressContent, &ingress)
 	kubeResources.Ingresses = append(kubeResources.Ingresses, ingress)
@@ -67,13 +67,13 @@ func helperGetK8sResources() KubeResources {
 	kubeResources.Services = append(kubeResources.Services, service)
 
 	//Get Deployment
-	var deployment apps_v1beta2.Deployment
+	var deployment apps_v1.Deployment
 	deploymentContent := helperGetFileContent("deployment.json")
 	json.Unmarshal(deploymentContent, &deployment)
 	kubeResources.Deployments = append(kubeResources.Deployments, deployment)
 
 	//Get Replica Set
-	var replicaSet ext_v1beta1.ReplicaSet
+	var replicaSet apps_v1.ReplicaSet
 	replicaSetContent := helperGetFileContent("replicaset.json")
 	json.Unmarshal(replicaSetContent, &replicaSet)
 	kubeResources.ReplicaSets = append(kubeResources.ReplicaSets, replicaSet)
